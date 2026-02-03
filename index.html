@@ -802,8 +802,7 @@ function yesClicked(e) {
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
                 HEY Cutieeee, you clicked again on yes. The next one is the last.<br>
-                If you click that yes too then i become the happiest person on EARTH....
-                </p>
+                If you click that yes too then i become the happiest person on EARTH....</p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
         });
@@ -823,31 +822,37 @@ function yesClicked(e) {
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // run intensified fireworks for 5 seconds then show 7s balloon animation,
-        // then show final content (unchanged)
-        launchFireworks(5000).then(() => {
-            // show 7s animation (reduced from 9s and larger with more balloons)
-            showValentineAnimation(7000).then(() => {
-                // restore card visibility and show final content exactly as before
-                card.style.visibility = 'visible';
-                card.classList.add("sad-card");
-                card.innerHTML = `
-                    <div class="romantic-name">Happy Valentine’s 💕</div>
-                    <div class="final-images">
-                        <img src="final1.jpg" alt="final image 1">
-                        <img src="final2.jpg" alt="final image 2">
-                    </div>
-                    <p style="margin-top:14px; text-align:left;">
-                    HEY Girl🫶... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
-                    Anyways i love you a lot frrrr🥺🩵..... Thanks for clicking yes...😭🧚‍♀️
-                    </p>
-                    <div style="margin-top:16px;">
-                        <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
-                    </div>
-                `;
-                const clearBtn = document.getElementById('clearBtn');
-                if (clearBtn) clearBtn.onclick = clearAndStop;
-            });
+        // run intensified fireworks for 14 seconds.
+        // Start the Valentine's overlay after 7 seconds (it will run for 5s),
+        // and when the fireworks promise resolves (after 14s) show final content.
+        const fireworksPromise = launchFireworks(14000);
+
+        // schedule the Valentine's overlay to start 7s into the fireworks
+        setTimeout(() => {
+            // show for 5 seconds
+            showValentineAnimation(5000).catch(()=>{});
+        }, 7000);
+
+        fireworksPromise.then(() => {
+            // restore card visibility and show final content exactly as before
+            card.style.visibility = 'visible';
+            card.classList.add("sad-card");
+            card.innerHTML = `
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <div class="final-images">
+                    <img src="final1.jpg" alt="final image 1">
+                    <img src="final2.jpg" alt="final image 2">
+                </div>
+                <p style="margin-top:14px; text-align:left;">
+                HEY Girl🫶... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
+                Anyways i love you a lot frrrr🥺🩵..... Thanks for clicking yes...😭🧚‍♀️
+                </p>
+                <div style="margin-top:16px;">
+                    <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
+                </div>
+            `;
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) clearBtn.onclick = clearAndStop;
         });
 
         return;
@@ -964,4 +969,3 @@ function restart() {
 
 </body>
 </html>
-
