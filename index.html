@@ -6,9 +6,12 @@
 <title>Angel Theresa 💖</title>
 
 <style>
+html, body {
+    height: 100%;
+}
+
 body {
     margin: 0;
-    height: 100vh;
     background: linear-gradient(#f8c8dc, #f3a6c8);
     display: flex;
     justify-content: center;
@@ -44,11 +47,13 @@ body.shake {
     transition: background 1.5s, color 1.5s;
     z-index: 10;
 
-    /* ✅ FIX (ONLY CHANGE) */
-    height: auto;
+    /* ✅ SCROLL FIX */
     max-height: 90vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+    position: relative;
 }
 
 .card.sad-card {
@@ -96,7 +101,6 @@ button {
     top: 40px;
 }
 
-/* Rain */
 .rain {
     position: fixed;
     inset: 0;
@@ -115,7 +119,6 @@ button {
     to { background-position: 0 200px; }
 }
 
-/* Heartbreak */
 .heart-container {
     position: relative;
     font-size: 90px;
