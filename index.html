@@ -329,10 +329,11 @@ button[disabled] {
 <script>
 /*
   Changes applied per request:
-  - On 3rd Yes click: remove the panel that contains Yes/No immediately.
+  - On 3rd Yes click: remove the panel that contains Yes/No immediately
+    and also hide the entire card content so the "Angel Theresa / Will you be my Valentine?"
+    stuff is no longer visible during fireworks & valentines animation.
   - After fireworks, show a bigger, more balloon-heavy "Happy Valentines days" animation
-    for 7 seconds (reduced from 9s) and then continue to the final images/message/clear
-    exactly as before.
+    for 7 seconds (reduced from 9). Afterwards the final images/message/clear are shown.
   - Other behavior remains unchanged.
 */
 
@@ -394,6 +395,7 @@ function renderMain() {
     if (programEnded) return;
     card.classList.remove("sad-card");
     card.classList.remove("fireworks-visible");
+    card.style.visibility = 'visible';
     card.innerHTML = `
         <div class="romantic-name">Angel Theresa 💖</div>
         <div class="bear">🐻💖</div>
@@ -458,7 +460,7 @@ function handleNo(e) {
     }
 }
 
-/* Intensified fireworks animation (unchanged from prior version) */
+/* Intensified fireworks animation (unchanged) */
 function launchFireworks(duration = 5000) {
     return new Promise(resolve => {
         const container = document.createElement('div');
@@ -610,11 +612,7 @@ function showValentineAnimation(duration = 7000) {
             const dur = 4500 + Math.floor(Math.random() * 2600); // varied duration up to >4.5s
             b.style.animationDelay = delay + 'ms';
             b.style.animationDuration = dur + 'ms';
-            b.style.transition = 'transform 0.2s linear';
-
-            // add slight horizontal sway using setInterval (optional) for natural float
-            // We'll apply CSS transform during animation using requestAnimationFrame for light sway
-            // but keep it simple: use CSS animation for rise only.
+            b.style.animationName = 'balloonRise';
 
             // remove after it finishes (delay + dur)
             setTimeout(() => {
@@ -651,7 +649,7 @@ function shadeColor(hex, percent) {
 
 /*
  Yes click behavior updates:
- - On the 3rd Yes click: remove the panel that contains Yes/No immediately,
+ - On the 3rd Yes click: remove/hide the panel and hide the entire card content immediately,
    then proceed with audio -> fireworks -> 7s balloon animation -> final content.
  - Other behaviors unchanged.
 */
@@ -725,6 +723,9 @@ function yesClicked(e) {
         const panel = card.querySelector('.buttons');
         if (panel) panel.remove();
 
+        // hide entire card content so "Angel Theresa / Will you be my Valentine?" is not visible
+        card.style.visibility = 'hidden';
+
         // play yesAudio3 exactly like the others
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
@@ -734,7 +735,8 @@ function yesClicked(e) {
         launchFireworks(5000).then(() => {
             // show 7s animation (reduced from 9s and larger with more balloons)
             showValentineAnimation(7000).then(() => {
-                // After animation completes, show final content exactly as before
+                // restore card visibility and show final content exactly as before
+                card.style.visibility = 'visible';
                 card.classList.add("sad-card");
                 card.innerHTML = `
                     <div class="romantic-name">Happy Valentine’s 💕</div>
