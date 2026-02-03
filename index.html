@@ -224,81 +224,91 @@ button[disabled] {
     position: relative;
 }
 
-/* --- ADDED: Valentine's animation styles --- */
+/* --- VALENTINE (Balloons + big text) overlay styles --- */
 .valentine-overlay {
-    position: absolute;
+    position: fixed;
     inset: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
-    gap: 14px;
     pointer-events: none;
     z-index: 10000;
+    overflow: hidden;
+    background: radial-gradient(circle at center, rgba(255, 95, 146, 0.12), rgba(255,255,255,0));
 }
 
+/* big animated text */
 .v-text {
     font-family: 'Georgia', serif;
-    font-size: 34px;
+    font-size: 86px; /* bigger */
     color: #fff;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 700;
+    letter-spacing: 2px;
+    font-weight: 900;
     -webkit-text-stroke: 1px rgba(0,0,0,0.12);
-    background: linear-gradient(90deg, #ff6fa3, #ffd166, #ffd54f);
+    background: linear-gradient(90deg, #ff6fa3, #ffd166, #ffb4a2);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
-    animation: vPop 900ms ease-out 0s 3;
+    animation: vPopLarge 900ms ease-out 0s 3;
+    text-align: center;
+    pointer-events: none;
 }
 
-@keyframes vPop {
-    0% { transform: scale(0.6) translateY(20px); opacity: 0; filter: blur(2px); }
-    40% { transform: scale(1.05) translateY(-6px); opacity: 1; filter: blur(0px); }
-    70% { transform: scale(0.95) translateY(2px); opacity: 1; }
+/* a slightly different pop for large text */
+@keyframes vPopLarge {
+    0% { transform: scale(0.5) translateY(30px); opacity: 0; filter: blur(3px); }
+    40% { transform: scale(1.08) translateY(-10px); opacity: 1; filter: blur(0px); }
+    70% { transform: scale(0.96) translateY(4px); opacity: 1; }
     100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
-/* floating hearts */
-.v-hearts {
+/* balloon element */
+.v-balloon {
     position: absolute;
-    inset: 0;
+    width: 48px;
+    height: 62px;
+    border-radius: 50% 50% 45% 45%;
+    transform-origin: center bottom;
+    will-change: transform, opacity, top, left;
     pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.18);
 }
-.v-heart {
+
+/* balloon glossy highlight */
+.v-balloon::after {
+    content: '';
     position: absolute;
-    width: 26px;
-    height: 26px;
-    transform: translate(-50%, -50%) scale(0.8);
-    opacity: 0;
-    animation: heartRise 3200ms linear forwards;
-    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
-}
-.v-heart::before, .v-heart::after {
-    content: "";
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    background: currentColor;
+    left: 18%;
+    top: 14%;
+    width: 26%;
+    height: 30%;
     border-radius: 50%;
-    top: 0;
-    left: 0;
+    background: rgba(255,255,255,0.45);
+    transform: rotate(-25deg);
 }
-.v-heart::before { transform: translate(-30%, -30%); }
-.v-heart::after { transform: translate(30%, -30%); }
 
-@keyframes heartRise {
-    0% { opacity: 0; transform: translate(-50%, 40px) scale(0.6); }
+/* balloon string */
+.v-balloon .string {
+    position: absolute;
+    bottom: -36px;
+    width: 2px;
+    height: 36px;
+    background: rgba(0,0,0,0.18);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* balloon rising animation */
+@keyframes balloonRise {
+    0% { transform: translateY(0) scale(0.9); opacity: 0; }
     10% { opacity: 1; }
-    80% { opacity: 1; transform: translate(calc(-50% + var(--dx)), calc(var(--dy) * -1)) scale(1); }
-    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(var(--dy) * -1)) scale(0.6); }
+    70% { opacity: 1; transform: translateY(-560px) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-720px) scale(0.9); }
 }
-
-/* variations for size and timing */
-.v-heart.small { width: 14px; height: 14px; opacity: 0.9; }
-.v-heart.big { width: 40px; height: 40px; opacity: 0.95; }
-
-/* end added styles */
 </style>
 </head>
 
@@ -318,13 +328,12 @@ button[disabled] {
 
 <script>
 /*
-  Modified only: the fireworks are made much more intense while keeping
-  the rest of the program unchanged. Fireworks still run for ~5s but
-  produce many more bursts and particles to feel "intensifying".
-
-  AFTER the fireworks complete we now show a 9-second "Happy Valentines days"
-  animation (floating hearts + animated text). After 9s the original final
-  content (two images + message + Clear button) is displayed exactly as before.
+  Changes applied per request:
+  - On 3rd Yes click: remove the panel that contains Yes/No immediately.
+  - After fireworks, show a bigger, more balloon-heavy "Happy Valentines days" animation
+    for 7 seconds (reduced from 9s) and then continue to the final images/message/clear
+    exactly as before.
+  - Other behavior remains unchanged.
 */
 
 let noClickCount = 0;
@@ -557,62 +566,63 @@ function launchFireworks(duration = 5000) {
     });
 }
 
-/* NEW: show 9-second Valentine's animation overlay (returns Promise) */
-function showValentineAnimation(duration = 9000) {
+/* NEW: show 7-second Valentine's balloon animation (full-screen overlay) */
+function showValentineAnimation(duration = 7000) {
     return new Promise(resolve => {
-        // create overlay inside the card so styling/spacing matches your card
         const overlay = document.createElement('div');
         overlay.className = 'valentine-overlay';
-        // hearts container
-        const hearts = document.createElement('div');
-        hearts.className = 'v-hearts';
-        overlay.appendChild(hearts);
-        // text
+        document.body.appendChild(overlay);
+
+        // big text in center
         const text = document.createElement('div');
         text.className = 'v-text';
         text.textContent = 'Happy Valentines days';
         overlay.appendChild(text);
 
-        // add overlay to card (positioned absolute relative to card)
-        card.style.position = 'relative';
-        card.appendChild(overlay);
+        // create many balloons (bigger and more than before)
+        const colors = ['#ff4d88', '#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#a78bfa', '#ffb4a2', '#ffd54f'];
+        const balloonCount = 36; // more balloons
+        const w = window.innerWidth;
+        const h = window.innerHeight;
 
-        // generate many floating hearts with randomized positions & timings
-        const heartColors = ['#ff6fa3', '#ffb4a2', '#ffd166', '#ff6f91', '#a78bfa'];
-        const heartCount = 18; // number of hearts to spawn over duration
-        for (let i = 0; i < heartCount; i++) {
-            const h = document.createElement('div');
-            h.className = 'v-heart';
-            // size variation
-            if (Math.random() < 0.25) h.classList.add('big');
-            if (Math.random() < 0.25) h.classList.add('small');
-            const color = heartColors[Math.floor(Math.random() * heartColors.length)];
-            h.style.color = color;
-            // random starting point within the card
-            const left = 30 + Math.random() * 260; // roughly within card width (320px)
-            const top = 180 + Math.random() * 60; // start from lower half of card
-            h.style.left = left + 'px';
-            h.style.top = top + 'px';
-            // set random travel distance (dy) and horizontal offset (dx) for animation
-            const dy = 120 + Math.random() * 220; // upward travel
-            const dx = (Math.random() - 0.5) * 100; // horizontal drift
-            h.style.setProperty('--dx', dx + 'px');
-            h.style.setProperty('--dy', dy + 'px');
-            // staggered animation delay so hearts appear over time
-            const delay = Math.floor(Math.random() * (duration - 400));
-            h.style.animationDelay = (delay) + 'ms';
-            // varied duration
-            const dur = 2200 + Math.floor(Math.random() * 2000);
-            h.style.animationDuration = dur + 'ms';
-            hearts.appendChild(h);
-            // remove when done (slightly after duration)
+        for (let i = 0; i < balloonCount; i++) {
+            const b = document.createElement('div');
+            b.className = 'v-balloon';
+            const size = 36 + Math.floor(Math.random() * 48); // larger sizes
+            b.style.width = size + 'px';
+            b.style.height = Math.floor(size * 1.25) + 'px';
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            // gradient like a balloon
+            b.style.background = `linear-gradient(180deg, ${color}, ${shadeColor(color, -12)})`;
+            // initial left position spread across width
+            const left = Math.random() * w;
+            const startTop = h + (Math.random() * 120); // start slightly below viewport
+            b.style.left = left + 'px';
+            b.style.top = startTop + 'px';
+            // add string
+            const s = document.createElement('div');
+            s.className = 'string';
+            b.appendChild(s);
+            overlay.appendChild(b);
+
+            // animate with random delay so they rise over the 7s window
+            const delay = Math.floor(Math.random() * Math.max(0, duration - 800));
+            const dur = 4500 + Math.floor(Math.random() * 2600); // varied duration up to >4.5s
+            b.style.animationDelay = delay + 'ms';
+            b.style.animationDuration = dur + 'ms';
+            b.style.transition = 'transform 0.2s linear';
+
+            // add slight horizontal sway using setInterval (optional) for natural float
+            // We'll apply CSS transform during animation using requestAnimationFrame for light sway
+            // but keep it simple: use CSS animation for rise only.
+
+            // remove after it finishes (delay + dur)
             setTimeout(() => {
-                h.remove();
-            }, delay + dur + 100);
+                b.remove();
+            }, delay + dur + 200);
         }
 
-        // animate text pulses over the 9 seconds (using repeated vPop already in CSS)
-        // resolve after duration
+        // remove overlay and resolve after duration
         setTimeout(() => {
             overlay.remove();
             resolve();
@@ -620,12 +630,30 @@ function showValentineAnimation(duration = 9000) {
     });
 }
 
+// small helper to darken a hex-like color (accepts #rrggbb or rgb-ish named colors)
+function shadeColor(hex, percent) {
+    // try to parse #RRGGBB
+    try {
+        if (hex[0] === '#') {
+            const num = parseInt(hex.slice(1),16);
+            let r = (num >> 16) + percent;
+            let g = ((num >> 8) & 0x00FF) + percent;
+            let b = (num & 0x0000FF) + percent;
+            r = Math.max(0, Math.min(255, r));
+            g = Math.max(0, Math.min(255, g));
+            b = Math.max(0, Math.min(255, b));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    } catch (e) {}
+    // fallback: return original
+    return hex;
+}
+
 /*
- Yes click behavior:
- - 1st yes: play yesAudio1; lock No; show trap message + yes image
- - 2nd yes: play yesAudio2; show yes2 image + second message
- - 3rd yes: play yesAudio3 (same pattern), run intense fireworks for 5s,
-           then show the 9s Happy Valentines animation, then show final images + message + Clear button.
+ Yes click behavior updates:
+ - On the 3rd Yes click: remove the panel that contains Yes/No immediately,
+   then proceed with audio -> fireworks -> 7s balloon animation -> final content.
+ - Other behaviors unchanged.
 */
 function yesClicked(e) {
     if (programEnded) return;
@@ -693,15 +721,19 @@ function yesClicked(e) {
     }
 
     if (yesClickCount === 3) {
+        // remove the panel that contains yes/no immediately
+        const panel = card.querySelector('.buttons');
+        if (panel) panel.remove();
+
         // play yesAudio3 exactly like the others
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // run intensified fireworks for 5 seconds then show 9s valentine animation,
+        // run intensified fireworks for 5 seconds then show 7s balloon animation,
         // then show final content (unchanged)
         launchFireworks(5000).then(() => {
-            // show 9s animation
-            showValentineAnimation(9000).then(() => {
+            // show 7s animation (reduced from 9s and larger with more balloons)
+            showValentineAnimation(7000).then(() => {
                 // After animation completes, show final content exactly as before
                 card.classList.add("sad-card");
                 card.innerHTML = `
@@ -800,6 +832,10 @@ function clearAndStop() {
     // remove any fireworks containers that might remain
     const fw = document.querySelectorAll('.fireworks');
     fw.forEach(n => n.remove());
+
+    // remove valentine overlay if present
+    const v = document.querySelectorAll('.valentine-overlay');
+    v.forEach(n => n.remove());
 
     // remove rain if present
     const rain = document.querySelector('.rain');
