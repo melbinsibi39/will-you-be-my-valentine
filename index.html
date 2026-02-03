@@ -296,8 +296,12 @@ function handleNo(e) {
     }
 }
 
-// Yes click shows an image and increments yesClickCount.
-// On the FIRST Yes click it also shows the trap message and locks the No button.
+/*
+ Yes click behavior:
+ - 1st yes: lock No, show yes.jpg + trap message
+ - 2nd yes: show yes2.jpg + the "HEY Cutieeee..." message
+ - subsequent: show yes.jpg + running count
+*/
 function yesClicked(e) {
     // prevent the click from bubbling to other handlers
     e.stopPropagation();
@@ -315,6 +319,20 @@ function yesClicked(e) {
             You know it's a trap.<br>
             You clicked yes once now you can only click on yes.<br>
             The no button is locked
+            </p>
+            <p><small>(Tap anywhere to continue)</small></p>
+        `);
+        return;
+    }
+
+    if (yesClickCount === 2) {
+        // second yes: show different image + special message
+        showTempMessage(`
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <img src="yes2.jpg" class="full-img" alt="Second yes image">
+            <p>
+            HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+            and if you click that i will become the happiest person on EARTH....
             </p>
             <p><small>(Tap anywhere to continue)</small></p>
         `);
