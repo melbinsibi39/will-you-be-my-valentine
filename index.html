@@ -114,6 +114,26 @@ button[disabled] {
     box-shadow: none;
 }
 
+/* enable-sound overlay */
+#audio-unlock {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 9999;
+}
+#audio-unlock button {
+    padding: 14px 22px;
+    font-size: 18px;
+    background: #ff4d88;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
 /* Rain */
 .rain {
     position: fixed;
@@ -191,12 +211,14 @@ button[disabled] {
 <div class="card" id="card"></div>
 
 <!-- existing audio elements -->
-<audio id="voice1" src="voice1.mp3"></audio>
-<audio id="voice2" src="voice2.mp3"></audio>
+<audio id="voice1" src="voice1.mp3" preload="auto" playsinline></audio>
+<audio id="voice2" src="voice2.mp3" preload="auto" playsinline></audio>
 
-<!-- NEW: audio files for first and second Yes clicks -->
-<audio id="yesAudio1" src="yes1.mp3"></audio>
-<audio id="yesAudio2" src="yes2.mp3"></audio>
+<!-- yes audio elements with preload/playsinline -->
+<audio id="yesAudio1" src="yes1.mp3" preload="auto" playsinline></audio>
+<audio id="yesAudio2" src="yes2.mp3" preload="auto" playsinline></audio>
+
+<!-- audio-unlock overlay (created/removed dynamically as needed) -->
 
 <script>
 let noClickCount = 0;
@@ -208,15 +230,12 @@ let noLocked = false;        // when true, the No button is locked/disabled
 const card = document.getElementById("card");
 const voice1 = document.getElementById("voice1");
 const voice2 = document.getElementById("voice2");
-const yesAudio1 = document.getElementById("yesAudio1"); // new
-const yesAudio2 = document.getElementById("yesAudio2"); // new
+const yesAudio1 = document.getElementById("yesAudio1");
+const yesAudio2 = document.getElementById("yesAudio2");
 
 renderMain();
 
-/*
- Helper: preload an image and return a Promise that resolves on load,
- rejects on error (so we can show fallback text if the image is missing).
-*/
+/* Preload helper */
 function preloadImage(src, timeoutMs = 5000) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -231,7 +250,6 @@ function preloadImage(src, timeoutMs = 5000) {
         };
         if (timeoutMs) {
             timer = setTimeout(() => {
-                // give up
                 img.onload = img.onerror = null;
                 reject(new Error('Image load timeout: ' + src));
             }, timeoutMs);
@@ -240,18 +258,11 @@ function preloadImage(src, timeoutMs = 5000) {
     });
 }
 
-/*
- Use a one-time click listener when showing a message so we don't
- get race/bubbling issues on mobile/desktop. showTempMessage sets
- showingMessage=true and installs a one-time listener that restores
- the main view on the next click/tap.
-*/
+/* One-time message display helper */
 function showTempMessage(html) {
     showingMessage = true;
     card.innerHTML = html;
 
-    // ensure any accidental propagation from the trigger doesn't immediately close it:
-    // add the listener in the next task so the click that opened the message doesn't close it.
     setTimeout(() => {
         document.addEventListener('click', function closeOnce() {
             showingMessage = false;
@@ -261,9 +272,9 @@ function showTempMessage(html) {
     }, 0);
 }
 
+/* Render main view; respects noLocked */
 function renderMain() {
     card.classList.remove("sad-card");
-    // If noLocked is true we render the No button with disabled attribute & locked class
     card.innerHTML = `
         <div class="romantic-name">Angel Theresa 💖</div>
         <div class="bear">🐻💖</div>
@@ -279,23 +290,72 @@ function renderMain() {
         const yesBtn = document.getElementById("yes");
         const noBtn = document.getElementById("no");
         if (yesBtn) yesBtn.onclick = yesClicked;
-        // attach no handler only when not locked
         if (noBtn && !noLocked) noBtn.onclick = handleNo;
     }
 }
 
+/* Show an overlay with a button to "Enable sound" that the user taps to unlock audio. */
+function showAudioUnlockOverlay() {
+    // If an overlay already exists, do nothing
+    if (document.getElementById('audio-unlock')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'audio-unlock';
+    overlay.innerHTML = `<button id="audio-unlock-btn">Enable sound</button>`;
+    document.body.appendChild(overlay);
+
+    const btn = document.getElementById('audio-unlock-btn');
+    btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try {
+            // Try to play and immediately pause each audio to "prime" them
+            await Promise.all([
+                tryPlayAndPause(voice1),
+                tryPlayAndPause(voice2),
+                tryPlayAndPause(yesAudio1),
+                tryPlayAndPause(yesAudio2)
+            ]);
+        } catch (err) {
+            console.warn('Audio unlock attempt had errors:', err);
+        } finally {
+            overlay.remove();
+        }
+    }, { once: true });
+}
+
+/* Attempts to play an audio element then pause — used to prime playback */
+async function tryPlayAndPause(audioEl) {
+    if (!audioEl) return;
+    try {
+        audioEl.currentTime = 0;
+        await audioEl.play();
+        audioEl.pause();
+        audioEl.currentTime = 0;
+    } catch (err) {
+        // propagate so caller can know it failed, but don't crash
+        throw err;
+    }
+}
+
+/* No click behavior (unchanged except wrapped play with catch) */
 function handleNo(e) {
     e.stopPropagation();
 
-    // play voice1 on the 2nd click, voice2 on the 3rd (preserves original behavior)
     if (noClickCount === 1) {
         voice1.currentTime = 0;
-        voice1.play().catch(()=>{});
+        voice1.play().catch(err => {
+            console.warn('voice1 play failed:', err);
+            // show overlay to allow user to enable audio manually
+            showAudioUnlockOverlay();
+        });
     }
 
     if (noClickCount === 2) {
         voice2.currentTime = 0;
-        voice2.play().catch(()=>{});
+        voice2.play().catch(err => {
+            console.warn('voice2 play failed:', err);
+            showAudioUnlockOverlay();
+        });
     }
 
     if (noClickCount === 0) {
@@ -307,7 +367,6 @@ function handleNo(e) {
         `);
     }
     else if (noClickCount === 1) {
-        // 2nd click: show image + message, and voice1 is played above
         noClickCount++;
         showTempMessage(`
             <div class="romantic-name">Angel Theresa 💖</div>
@@ -330,33 +389,23 @@ function handleNo(e) {
     }
 }
 
-/*
- Yes click behavior (preloads images and handles missing files gracefully).
- Now also plays audio for the 1st and 2nd Yes clicks:
- - 1st yes: play yesAudio1, lock No, show yes.jpg + trap message
- - 2nd yes: play yesAudio2, show yes2.jpg + the HEY Cutieeee message
- - subsequent: show yes.jpg + running count
-*/
+/* Yes click behavior with improved audio handling */
 async function yesClicked(e) {
-    // prevent the click from bubbling to other handlers
     e.stopPropagation();
-
     yesClickCount++;
 
     if (yesClickCount === 1) {
-        // lock the No button from now on
         noLocked = true;
 
-        // try to play the first-yes audio (best-effort)
+        // Try to play yesAudio1; if blocked, show unlock overlay
         try {
             yesAudio1.currentTime = 0;
             await yesAudio1.play();
         } catch (err) {
-            // ignore play errors (autoplay policies, etc.)
-            console.warn('yesAudio1 play failed', err);
+            console.warn('yesAudio1 play blocked:', err);
+            showAudioUnlockOverlay();
         }
 
-        // preload yes.jpg (optional) and then show the message; fallback to showing message without image on error
         try {
             await preloadImage('yes.jpg');
             showTempMessage(`
@@ -370,7 +419,6 @@ async function yesClicked(e) {
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
         } catch (err) {
-            // image failed to load — still show the message text so the user sees the trap
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
@@ -386,15 +434,15 @@ async function yesClicked(e) {
     }
 
     if (yesClickCount === 2) {
-        // try to play the second-yes audio (best-effort)
+        // Try to play yesAudio2; if blocked, show unlock overlay
         try {
             yesAudio2.currentTime = 0;
             await yesAudio2.play();
         } catch (err) {
-            console.warn('yesAudio2 play failed', err);
+            console.warn('yesAudio2 play blocked:', err);
+            showAudioUnlockOverlay();
         }
 
-        // second yes: preload yes2.jpg and then show different image + special message
         try {
             await preloadImage('yes2.jpg');
             showTempMessage(`
@@ -407,7 +455,6 @@ async function yesClicked(e) {
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
         } catch (err) {
-            // fallback to text-only if image missing
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
@@ -421,7 +468,15 @@ async function yesClicked(e) {
         return;
     }
 
-    // subsequent Yes clicks: preload yes.jpg (best-effort) and show the yes image + count
+    // subsequent yes clicks: best-effort play (no special audio)
+    try {
+        yesAudio1.currentTime = 0;
+        await yesAudio1.play();
+    } catch (err) {
+        console.warn('yesAudio1 (subsequent) play blocked:', err);
+        showAudioUnlockOverlay();
+    }
+
     try {
         await preloadImage('yes.jpg');
         showTempMessage(`
@@ -440,8 +495,8 @@ async function yesClicked(e) {
     }
 }
 
+/* Heartbreak scene unchanged except scroll fix */
 function heartbreakScene() {
-    // keep original behavior
     document.body.classList.add("sad", "shake");
     card.classList.add("sad-card");
 
@@ -467,11 +522,8 @@ function heartbreakScene() {
         <button class="restart" onclick="restart()">Restart</button>
     `;
 
-    // allow the page to scroll and align content to top so the Restart button
-    // can be reached on small screens. Then automatically scroll the Restart into view.
     document.body.classList.add('sad-scroll');
 
-    // give the DOM a tick so the restart button exists, then scroll to it
     setTimeout(() => {
         const restartBtn = document.querySelector('.restart');
         if (restartBtn) {
@@ -482,24 +534,21 @@ function heartbreakScene() {
     }, 80);
 }
 
+/* Restart resets counters and pauses audio */
 function restart() {
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
-    // reset yes counter and unlock No on restart
     yesClickCount = 0;
     noLocked = false;
 
-    // stop/pause all audios (existing and new)
     try { voice1.pause(); voice1.currentTime = 0; } catch {}
     try { voice2.pause(); voice2.currentTime = 0; } catch {}
     try { yesAudio1.pause(); yesAudio1.currentTime = 0; } catch {}
     try { yesAudio2.pause(); yesAudio2.currentTime = 0; } catch {}
 
     document.body.classList.remove("sad", "shake");
-    // restore original overflow/centering behavior
     document.body.classList.remove('sad-scroll');
-    // scroll back to top so the main card is centered again
     window.scrollTo({ top: 0, behavior: 'auto' });
     renderMain();
 }
