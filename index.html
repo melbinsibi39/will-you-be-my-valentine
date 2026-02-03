@@ -200,22 +200,13 @@ button[disabled] {
     z-index: 9998;
 }
 
-/* single particle for fireworks */
-.firework-particle {
+/* If canvas fireworks are present, they fill the container */
+.fireworks canvas {
     position: absolute;
-    border-radius: 50%;
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.4);
-    animation: fw var(--dur, 900ms) ease-out forwards;
-    will-change: transform, opacity, box-shadow;
-}
-
-/* particle animation will be customized per particle via inline styles */
-@keyframes fw {
-    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.4); filter: blur(0px); }
-    50% { opacity: 1; filter: blur(0.6px); }
-    85% { opacity: 0.8; transform: translate(var(--dx), var(--dy)) scale(1.05); }
-    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); filter: blur(1px); }
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
 /* make card content accessible when fireworks are showing */
@@ -309,6 +300,19 @@ button[disabled] {
     70% { opacity: 1; transform: translateY(-560px) scale(1.05); }
     100% { opacity: 0; transform: translateY(-720px) scale(0.9); }
 }
+
+/* Responsive adjustments for mobile (keeps everything else unchanged) */
+@media (max-width: 480px) {
+    .v-text {
+        font-size: 34px !important; /* make the big text comfortably sized on phones */
+    }
+    .valentine-overlay {
+        padding: 8px;
+    }
+    /* ensure the fireworks canvas sits below card but still visible */
+    .fireworks { z-index: 9996; }
+    .card.fireworks-visible { z-index: 9999; }
+}
 </style>
 </head>
 
@@ -328,13 +332,10 @@ button[disabled] {
 
 <script>
 /*
-  Changes applied per request:
-  - On 3rd Yes click: remove the panel that contains Yes/No immediately
-    and also hide the entire card content so the "Angel Theresa / Will you be my Valentine?"
-    stuff is no longer visible during fireworks & valentines animation.
-  - After fireworks, show a bigger, more balloon-heavy "Happy Valentines days" animation
-    for 7 seconds (reduced from 9). Afterwards the final images/message/clear are shown.
-  - Other behavior remains unchanged.
+  Changes applied:
+  - Replaced DOM-heavy fireworks with a canvas-based implementation for much smoother performance on mobile.
+  - Added responsive sizing for the "Happy Valentines days" overlay (smaller text and adjusted balloon counts/sizes when on phones).
+  - Other page behavior unchanged.
 */
 
 let noClickCount = 0;
@@ -460,7 +461,7 @@ function handleNo(e) {
     }
 }
 
-/* Intensified fireworks animation (unchanged) */
+/* Canvas-based fireworks for improved mobile performance */
 function launchFireworks(duration = 5000) {
     return new Promise(resolve => {
         const container = document.createElement('div');
@@ -468,102 +469,186 @@ function launchFireworks(duration = 5000) {
         document.body.appendChild(container);
         card.classList.add('fireworks-visible');
 
+        // create canvas
+        const canvas = document.createElement('canvas');
+        container.appendChild(canvas);
+        const ctx = canvas.getContext('2d', { alpha: true });
+
+        let dpr = Math.max(1, window.devicePixelRatio || 1);
+        function resizeCanvas() {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+            canvas.width = Math.floor(w * dpr);
+            canvas.height = Math.floor(h * dpr);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
         const colors = ['#ff4d88','#ffd166','#06d6a0','#118ab2','#ef476f','#ffd54f','#a78bfa','#ffb4a2'];
-        const w = window.innerWidth;
-        const h = window.innerHeight;
 
-        // more frequent bursts for an intense show
-        const burstIntervalMs = 160; // quicker bursts
-        const bursts = Math.max(20, Math.floor(duration / burstIntervalMs));
-        let burstCount = 0;
+        // particle pool
+        let particles = [];
+        const MAX_PARTICLES = 700; // cap to avoid overdraw on mobile
 
-        const burstTimer = setInterval(() => {
-            // create 1-3 near-simultaneous bursts to intensify
-            const simultaneous = 1 + Math.floor(Math.random()*3);
-            for (let s=0;s<simultaneous;s++) {
-                createBurst();
+        function spawnBurst(cx, cy, count) {
+            for (let i = 0; i < count && particles.length < MAX_PARTICLES; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = (30 + Math.random() * 160) * (0.9 + Math.random()*0.6);
+                const vx = Math.cos(angle) * speed;
+                const vy = Math.sin(angle) * speed;
+                const life = 600 + Math.random() * 900;
+                const size = 1.5 + Math.random()*4.5;
+                const color = colors[Math.floor(Math.random()*colors.length)];
+                particles.push({
+                    x: cx,
+                    y: cy,
+                    vx: vx,
+                    vy: vy,
+                    ax: vx * -0.0006, // slight air resistance
+                    ay: 160 + Math.random()*40, // gravity-ish
+                    life: life,
+                    age: 0,
+                    size: size,
+                    color: color,
+                    alpha: 1,
+                    flick: Math.random() < 0.25
+                });
             }
+        }
+
+        // periodic burst generator (less DOM & lighter per-frame work than many divs)
+        const burstIntervalMs = 200;
+        const bursts = Math.max(6, Math.floor(duration / burstIntervalMs));
+        let burstCount = 0;
+        const burstTimer = setInterval(() => {
+            createBurst();
             burstCount++;
             if (burstCount >= bursts) {
                 clearInterval(burstTimer);
             }
         }, burstIntervalMs);
 
-        // immediate extra initial bursts
-        for (let i=0;i<3;i++) createBurst();
-
-        // after duration remove container and resolve
-        setTimeout(() => {
-            // leave a short tail time for particles to fade
-            setTimeout(() => {
-                container.remove();
-                card.classList.remove('fireworks-visible');
-                resolve();
-            }, 800);
-        }, duration);
+        // create a few initial bursts
+        for (let i = 0; i < 3; i++) createBurst();
 
         function createBurst() {
-            const cx = Math.random() * w;
-            const cy = Math.random() * (h * 0.55); // upper area
-            // Main burst
-            spawnParticles(cx, cy, 28 + Math.floor(Math.random()*36), 60, 350);
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            const cx = (0.12 + Math.random() * 0.76) * w;
+            const cy = Math.random() * (h * 0.55);
+            const mainCount = 18 + Math.floor(Math.random() * 36);
+            spawnBurst(cx, cy, mainCount);
 
-            // 1-2 sub-bursts shortly after to create cascading explosions
+            // sub-bursts shortly after
             const subCount = 1 + Math.floor(Math.random()*2);
             for (let i=0;i<subCount;i++) {
                 setTimeout(() => {
                     const offsetX = (Math.random()-0.5) * 80;
                     const offsetY = (Math.random()-0.5) * 80;
-                    // smaller sub-burst
-                    spawnParticles(cx + offsetX, cy + offsetY, 12 + Math.floor(Math.random()*22), 30, 180);
-                }, 120 + Math.floor(Math.random()*260));
+                    spawnBurst(cx + offsetX, cy + offsetY, 8 + Math.floor(Math.random()*22));
+                }, 100 + Math.floor(Math.random()*220));
             }
-
-            // occasional central rapid spark shower
+            // occasional spark shower
             if (Math.random() < 0.35) {
                 setTimeout(() => {
-                    spawnParticles(cx, cy + 30, 40 + Math.floor(Math.random()*40), 20, 220, true);
-                }, 80);
+                    spawnBurst(cx, cy + 20, 28 + Math.floor(Math.random()*32));
+                }, 60);
             }
         }
 
-        function spawnParticles(cx, cy, count, minDist, maxDist, sparkle=false) {
-            for (let i=0;i<count;i++) {
-                const el = document.createElement('div');
-                el.className = 'firework-particle';
-                const color = colors[Math.floor(Math.random()*colors.length)];
-                // random size for richer effect
-                const size = 6 + Math.floor(Math.random()*16);
-                el.style.width = size + 'px';
-                el.style.height = size + 'px';
-                el.style.background = color;
-                // glow / spark look
-                el.style.boxShadow = `0 0 ${4 + Math.floor(Math.random()*8)}px ${color}, 0 0 ${8 + Math.floor(Math.random()*10)}px ${color}66`;
-                // random angle and distance
-                const angle = Math.random() * Math.PI * 2;
-                const dist = minDist + Math.random()*(maxDist - minDist);
-                const dx = Math.cos(angle) * dist;
-                const dy = Math.sin(angle) * dist;
-                el.style.setProperty('--dx', dx + 'px');
-                el.style.setProperty('--dy', dy + 'px');
-                // varied duration for particles for a more natural look
-                const dur = 700 + Math.floor(Math.random()*900);
-                el.style.setProperty('--dur', dur + 'ms');
-                el.style.animationDuration = dur + 'ms';
-                // jitter slight horizontal placement to avoid strict centers
-                el.style.left = (cx + (Math.random()-0.5)*8) + 'px';
-                el.style.top = (cy + (Math.random()-0.5)*6) + 'px';
-                // if sparkle, make particles thinner/wider and shorter-lived
-                if (sparkle && Math.random() < 0.6) {
-                    el.style.width = (2 + Math.floor(Math.random()*6)) + 'px';
-                    el.style.height = (8 + Math.floor(Math.random()*16)) + 'px';
+        let last = performance.now();
+        let running = true;
+
+        function frame(now) {
+            const dt = Math.min(40, now - last); // clamp dt to avoid big jumps
+            last = now;
+
+            // fade canvas slightly for motion blur effect
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.fillStyle = 'rgba(0,0,0,0.15)';
+            ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+            ctx.globalCompositeOperation = 'lighter';
+
+            // update + draw particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.age += dt;
+                if (p.age >= p.life) {
+                    particles.splice(i, 1);
+                    continue;
                 }
-                container.appendChild(el);
-                // remove after animation finished
-                setTimeout(() => {
-                    el.remove();
-                }, dur + 40);
+                // simple physics
+                p.vx += p.ax * dt;
+                p.vy += (p.ay * dt) / 1000;
+                p.x += (p.vx * dt) / 1000;
+                p.y += (p.vy * dt) / 1000;
+
+                // fade out later in life
+                p.alpha = 1 - (p.age / p.life);
+
+                // draw
+                const radius = p.size;
+                ctx.beginPath();
+                // subtle flicker
+                const a = p.alpha * (p.flick ? (0.7 + Math.random() * 0.6) : 1);
+                ctx.fillStyle = hexToRgba(p.color, a);
+                ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+                ctx.fill();
             }
+
+            // continue animation loop while either generating or particles exist
+            if (running || particles.length > 0) {
+                requestAnimationFrame(frame);
+            } else {
+                // tail cleared; cleanup
+                cleanupAndResolve();
+            }
+        }
+
+        // helper to convert hex color to rgba with alpha
+        function hexToRgba(hex, a) {
+            // accept #rrggbb
+            try {
+                if (hex[0] === '#') {
+                    const num = parseInt(hex.slice(1), 16);
+                    const r = (num >> 16) & 255;
+                    const g = (num >> 8) & 255;
+                    const b = num & 255;
+                    return `rgba(${r},${g},${b},${a})`;
+                }
+            } catch (e) {}
+            return hex;
+        }
+
+        // stop generating after duration but let existing particles fade out
+        setTimeout(() => {
+            running = false;
+            clearInterval(burstTimer);
+            // give particles up to 900ms to fade naturally (frame loop will exit when none left)
+            setTimeout(() => {
+                // if still particles after extra tail duration, force cleanup
+                if (particles.length === 0) {
+                    cleanupAndResolve();
+                } else {
+                    // ensure we will eventually cleanup even if some remain
+                    setTimeout(cleanupAndResolve, 1200);
+                }
+            }, 200);
+        }, duration);
+
+        let raf = requestAnimationFrame(frame);
+
+        function cleanupAndResolve() {
+            try { cancelAnimationFrame(raf); } catch(e){}
+            try { clearInterval(burstTimer); } catch(e){}
+            window.removeEventListener('resize', resizeCanvas);
+            container.remove();
+            card.classList.remove('fireworks-visible');
+            resolve();
         }
     });
 }
@@ -581,22 +666,30 @@ function showValentineAnimation(duration = 7000) {
         text.textContent = 'Happy Valentines days';
         overlay.appendChild(text);
 
-        // create many balloons (bigger and more than before)
-        const colors = ['#ff4d88', '#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#a78bfa', '#ffb4a2', '#ffd54f'];
-        const balloonCount = 36; // more balloons
+        // detect phone / small screen & adjust sizes/counts for mobile
+        const isMobile = (window.innerWidth <= 480) || /Mobi|Android/i.test(navigator.userAgent);
+        let colors = ['#ff4d88', '#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#a78bfa', '#ffb4a2', '#ffd54f'];
+        let balloonCount = isMobile ? 16 : 36; // fewer on mobile to reduce overdraw
         const w = window.innerWidth;
         const h = window.innerHeight;
+
+        if (isMobile) {
+            // ensure readable on phones
+            text.style.fontSize = '34px';
+            overlay.style.padding = '6px';
+        }
 
         for (let i = 0; i < balloonCount; i++) {
             const b = document.createElement('div');
             b.className = 'v-balloon';
-            const size = 36 + Math.floor(Math.random() * 48); // larger sizes
+            // smaller sizes on mobile
+            const size = isMobile ? (20 + Math.floor(Math.random() * 28)) : (36 + Math.floor(Math.random() * 48));
             b.style.width = size + 'px';
             b.style.height = Math.floor(size * 1.25) + 'px';
             const color = colors[Math.floor(Math.random() * colors.length)];
             // gradient like a balloon
             b.style.background = `linear-gradient(180deg, ${color}, ${shadeColor(color, -12)})`;
-            // initial left position spread across width
+            // initial left position spread across width (give some margin so balloons appear nicely on small screens)
             const left = Math.random() * w;
             const startTop = h + (Math.random() * 120); // start slightly below viewport
             b.style.left = left + 'px';
@@ -609,7 +702,7 @@ function showValentineAnimation(duration = 7000) {
 
             // animate with random delay so they rise over the 7s window
             const delay = Math.floor(Math.random() * Math.max(0, duration - 800));
-            const dur = 4500 + Math.floor(Math.random() * 2600); // varied duration up to >4.5s
+            const dur = (isMobile ? 3600 : 4500) + Math.floor(Math.random() * (isMobile ? 1200 : 2600)); // shorter on mobile
             b.style.animationDelay = delay + 'ms';
             b.style.animationDuration = dur + 'ms';
             b.style.animationName = 'balloonRise';
