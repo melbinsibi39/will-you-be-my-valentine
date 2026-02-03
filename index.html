@@ -186,6 +186,7 @@ button {
 
 <script>
 let noClickCount = 0;
+let yesClickCount = 0;       // NEW: counts Yes clicks
 let showingMessage = false;
 let heartbreakDone = false;
 
@@ -195,6 +196,7 @@ const voice2 = document.getElementById("voice2");
 
 renderMain();
 
+// clicking anywhere when showingMessage is true returns to the main card
 document.body.addEventListener("click", () => {
     if (showingMessage) {
         showingMessage = false;
@@ -217,6 +219,7 @@ function renderMain() {
 
     if (!heartbreakDone) {
         document.getElementById("no").onclick = handleNo;
+        // attach yes handler (passes the event so we can stop propagation)
         document.getElementById("yes").onclick = yesClicked;
     }
 }
@@ -250,7 +253,6 @@ function handleNo(e) {
         showingMessage = true;
         card.innerHTML = `
             <div class="romantic-name">Angel Theresa 💖</div>
-            <!-- NEW: image shown on the 2nd No click -->
             <img src="second.jpg" class="full-img" alt="second image">
             <p>
             I know maybe it might be the worst<br>
@@ -268,6 +270,24 @@ function handleNo(e) {
         heartbreakDone = true;
         heartbreakScene();
     }
+}
+
+// NEW: Yes click shows an image and increments yesClickCount.
+// Tapping anywhere (the body listener) will set showingMessage=false and return to the main card.
+function yesClicked(e) {
+    // prevent the click from bubbling to the body immediately
+    e.stopPropagation();
+
+    yesClickCount++;
+    showingMessage = true;
+
+    card.innerHTML = `
+        <div class="romantic-name">Happy Valentine’s 💕</div>
+        <!-- Replace "yes.jpg" with your chosen filename/path -->
+        <img src="yes.jpg" class="full-img" alt="Yes image">
+        <p>You chose YES 💖 (count: ${yesClickCount})</p>
+        <small>(Tap anywhere to continue)</small>
+    `;
 }
 
 function heartbreakScene() {
@@ -316,6 +336,8 @@ function restart() {
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
+    // Optionally reset yes count too if you want:
+    // yesClickCount = 0;
     voice1.pause();
     voice2.pause();
     voice1.currentTime = 0;
@@ -324,19 +346,10 @@ function restart() {
     // restore original overflow/centering behavior
     document.body.classList.remove('sad-scroll');
     // scroll back to top so the main card is centered again
-    window.scrollTo({ top: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     renderMain();
-}
-
-function yesClicked() {
-    card.innerHTML = `
-        <div class="romantic-name">Happy Valentine’s 💕</div>
-        <div style="font-size:60px;">💖🐻💖</div>
-        <p>You chose YES 💖</p>
-    `;
 }
 </script>
 
 </body>
 </html>
-
