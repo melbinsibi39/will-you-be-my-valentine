@@ -8,14 +8,13 @@
 <style>
 body {
     margin: 0;
+    height: 100vh;
     background: linear-gradient(#f8c8dc, #f3a6c8);
     display: flex;
     justify-content: center;
-    align-items: flex-start;
+    align-items: center;
     font-family: Arial, sans-serif;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    min-height: 100vh;
+    overflow: hidden;
     transition: background 1.5s;
 }
 
@@ -44,7 +43,6 @@ body.shake {
     box-shadow: 0 10px 25px rgba(0,0,0,0.35);
     transition: background 1.5s, color 1.5s;
     z-index: 10;
-    margin-top: 40px;
 }
 
 .card.sad-card {
@@ -147,13 +145,19 @@ button {
 }
 
 .restart {
-    margin-top: 30px;
-    padding: 12px 30px;
+    margin-top: 20px;
+    padding: 10px 26px;
     border-radius: 22px;
     background: #ff4d88;
     color: white;
     border: none;
     cursor: pointer;
+}
+
+.full-img {
+    width: 100%;
+    border-radius: 14px;
+    margin-bottom: 15px;
 }
 </style>
 </head>
@@ -162,19 +166,19 @@ button {
 
 <div class="card" id="card"></div>
 
+<audio id="voice1" src="voice1.mp3"></audio>
+<audio id="voice2" src="voice2.mp3"></audio>
+
 <script>
 let noClickCount = 0;
 let showingMessage = false;
 let heartbreakDone = false;
 
 const card = document.getElementById("card");
-const NO_START = { left: 200, top: 40 };
+const voice1 = document.getElementById("voice1");
+const voice2 = document.getElementById("voice2");
 
 renderMain();
-
-function vibrate() {
-    if (navigator.vibrate) navigator.vibrate(120);
-}
 
 document.body.addEventListener("click", () => {
     if (showingMessage) {
@@ -190,49 +194,30 @@ function renderMain() {
         <div class="bear">🐻💖</div>
         <p>Will you be my Valentine?</p>
         ${heartbreakDone ? "" : `
-        <div class="buttons" id="buttons">
+        <div class="buttons">
             <button id="yes">Yes</button>
             <button id="no">No</button>
         </div>`}
     `;
 
     if (!heartbreakDone) {
-        const noBtn = document.getElementById("no");
-        const yesBtn = document.getElementById("yes");
-
-        noBtn.style.left = NO_START.left + "px";
-        noBtn.style.top = NO_START.top + "px";
-
-        noBtn.onclick = handleNo;
-        yesBtn.onclick = yesClicked;
+        document.getElementById("no").onclick = handleNo;
+        document.getElementById("yes").onclick = yesClicked;
     }
-}
-
-function moveNoButton() {
-    const buttons = document.getElementById("buttons");
-    const noBtn = document.getElementById("no");
-    const yesBtn = document.getElementById("yes");
-
-    const padding = 20;
-    const safeDistance = 90;
-
-    let x, y;
-    do {
-        x = Math.random() * (buttons.offsetWidth - noBtn.offsetWidth - padding);
-        y = Math.random() * (buttons.offsetHeight - noBtn.offsetHeight - padding);
-    } while (
-        Math.abs(x - yesBtn.offsetLeft) < safeDistance &&
-        Math.abs(y - yesBtn.offsetTop) < safeDistance
-    );
-
-    noBtn.style.left = x + "px";
-    noBtn.style.top = y + "px";
 }
 
 function handleNo(e) {
     e.stopPropagation();
-    vibrate();
-    moveNoButton();
+
+    if (noClickCount === 1) {
+        voice1.currentTime = 0;
+        voice1.play();
+    }
+
+    if (noClickCount === 2) {
+        voice2.currentTime = 0;
+        voice2.play();
+    }
 
     if (noClickCount === 0) {
         noClickCount++;
@@ -240,15 +225,22 @@ function handleNo(e) {
         card.innerHTML = `
             <img src="how.jpg" class="full-img">
             <p><small>(Tap anywhere to continue)</small></p>
+        `;
     }
     else if (noClickCount === 1) {
         noClickCount++;
-        showMessage(`I know maybe it might be the worst<br>
-        i might be the worst but even though<br>
-        i wanted to try it.<br><br>
-        So your last final chance is coming right up.<br>
-        Please angeleeee no matter even if you click a NO<br>
-        i will wait until the next 14th........`);
+        showingMessage = true;
+        card.innerHTML = `
+            <p>
+            I know maybe it might be the worst<br>
+            i might be the worst but even though<br>
+            i wanted to try it.<br><br>
+            So your last final chance is coming right up.<br>
+            Please angeleeee no matter even if you click a NO<br>
+            i will wait until the next 14th........
+            </p>
+            <small>(Tap anywhere to continue)</small>
+        `;
     }
     else if (noClickCount === 2) {
         noClickCount++;
@@ -257,24 +249,16 @@ function handleNo(e) {
     }
 }
 
-function showMessage(text) {
-    showingMessage = true;
-    card.innerHTML = `
-        <div class="romantic-name">Angel 💖</div>
-        <p>${text}<br><br><small>(Tap anywhere to continue)</small></p>
-    `;
-}
-
 function heartbreakScene() {
     document.body.classList.add("sad", "shake");
     card.classList.add("sad-card");
 
     const rain = document.createElement("div");
     rain.className = "rain";
-    rain.id = "rain";
     document.body.appendChild(rain);
 
     card.innerHTML = `
+        <img src="third.jpg" class="full-img">
         <div class="heart-container">
             <div class="heart-left">❤️</div>
             <div class="heart-right">❤️</div>
@@ -295,14 +279,15 @@ function restart() {
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
+    voice1.pause();
+    voice2.pause();
+    voice1.currentTime = 0;
+    voice2.currentTime = 0;
     document.body.classList.remove("sad", "shake");
-    const rain = document.getElementById("rain");
-    if (rain) rain.remove();
     renderMain();
 }
 
-function yesClicked(e) {
-    e.stopPropagation();
+function yesClicked() {
     card.innerHTML = `
         <div class="romantic-name">Happy Valentine’s 💕</div>
         <div style="font-size:60px;">💖🐻💖</div>
@@ -313,4 +298,3 @@ function yesClicked(e) {
 
 </body>
 </html>
-
