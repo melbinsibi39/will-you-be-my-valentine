@@ -223,6 +223,82 @@ button[disabled] {
     z-index: 9999;
     position: relative;
 }
+
+/* --- ADDED: Valentine's animation styles --- */
+.valentine-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    pointer-events: none;
+    z-index: 10000;
+}
+
+.v-text {
+    font-family: 'Georgia', serif;
+    font-size: 34px;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 700;
+    -webkit-text-stroke: 1px rgba(0,0,0,0.12);
+    background: linear-gradient(90deg, #ff6fa3, #ffd166, #ffd54f);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: vPop 900ms ease-out 0s 3;
+}
+
+@keyframes vPop {
+    0% { transform: scale(0.6) translateY(20px); opacity: 0; filter: blur(2px); }
+    40% { transform: scale(1.05) translateY(-6px); opacity: 1; filter: blur(0px); }
+    70% { transform: scale(0.95) translateY(2px); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+/* floating hearts */
+.v-hearts {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.v-heart {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%) scale(0.8);
+    opacity: 0;
+    animation: heartRise 3200ms linear forwards;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.12));
+}
+.v-heart::before, .v-heart::after {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: currentColor;
+    border-radius: 50%;
+    top: 0;
+    left: 0;
+}
+.v-heart::before { transform: translate(-30%, -30%); }
+.v-heart::after { transform: translate(30%, -30%); }
+
+@keyframes heartRise {
+    0% { opacity: 0; transform: translate(-50%, 40px) scale(0.6); }
+    10% { opacity: 1; }
+    80% { opacity: 1; transform: translate(calc(-50% + var(--dx)), calc(var(--dy) * -1)) scale(1); }
+    100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(var(--dy) * -1)) scale(0.6); }
+}
+
+/* variations for size and timing */
+.v-heart.small { width: 14px; height: 14px; opacity: 0.9; }
+.v-heart.big { width: 40px; height: 40px; opacity: 0.95; }
+
+/* end added styles */
 </style>
 </head>
 
@@ -245,6 +321,10 @@ button[disabled] {
   Modified only: the fireworks are made much more intense while keeping
   the rest of the program unchanged. Fireworks still run for ~5s but
   produce many more bursts and particles to feel "intensifying".
+
+  AFTER the fireworks complete we now show a 9-second "Happy Valentines days"
+  animation (floating hearts + animated text). After 9s the original final
+  content (two images + message + Clear button) is displayed exactly as before.
 */
 
 let noClickCount = 0;
@@ -369,12 +449,7 @@ function handleNo(e) {
     }
 }
 
-/* Intensified fireworks animation:
-   - More bursts
-   - More particles per burst
-   - Sub-bursts for extra sparkle
-   - Larger travel distances and varied sizes
-*/
+/* Intensified fireworks animation (unchanged from prior version) */
 function launchFireworks(duration = 5000) {
     return new Promise(resolve => {
         const container = document.createElement('div');
@@ -482,12 +557,75 @@ function launchFireworks(duration = 5000) {
     });
 }
 
+/* NEW: show 9-second Valentine's animation overlay (returns Promise) */
+function showValentineAnimation(duration = 9000) {
+    return new Promise(resolve => {
+        // create overlay inside the card so styling/spacing matches your card
+        const overlay = document.createElement('div');
+        overlay.className = 'valentine-overlay';
+        // hearts container
+        const hearts = document.createElement('div');
+        hearts.className = 'v-hearts';
+        overlay.appendChild(hearts);
+        // text
+        const text = document.createElement('div');
+        text.className = 'v-text';
+        text.textContent = 'Happy Valentines days';
+        overlay.appendChild(text);
+
+        // add overlay to card (positioned absolute relative to card)
+        card.style.position = 'relative';
+        card.appendChild(overlay);
+
+        // generate many floating hearts with randomized positions & timings
+        const heartColors = ['#ff6fa3', '#ffb4a2', '#ffd166', '#ff6f91', '#a78bfa'];
+        const heartCount = 18; // number of hearts to spawn over duration
+        for (let i = 0; i < heartCount; i++) {
+            const h = document.createElement('div');
+            h.className = 'v-heart';
+            // size variation
+            if (Math.random() < 0.25) h.classList.add('big');
+            if (Math.random() < 0.25) h.classList.add('small');
+            const color = heartColors[Math.floor(Math.random() * heartColors.length)];
+            h.style.color = color;
+            // random starting point within the card
+            const left = 30 + Math.random() * 260; // roughly within card width (320px)
+            const top = 180 + Math.random() * 60; // start from lower half of card
+            h.style.left = left + 'px';
+            h.style.top = top + 'px';
+            // set random travel distance (dy) and horizontal offset (dx) for animation
+            const dy = 120 + Math.random() * 220; // upward travel
+            const dx = (Math.random() - 0.5) * 100; // horizontal drift
+            h.style.setProperty('--dx', dx + 'px');
+            h.style.setProperty('--dy', dy + 'px');
+            // staggered animation delay so hearts appear over time
+            const delay = Math.floor(Math.random() * (duration - 400));
+            h.style.animationDelay = (delay) + 'ms';
+            // varied duration
+            const dur = 2200 + Math.floor(Math.random() * 2000);
+            h.style.animationDuration = dur + 'ms';
+            hearts.appendChild(h);
+            // remove when done (slightly after duration)
+            setTimeout(() => {
+                h.remove();
+            }, delay + dur + 100);
+        }
+
+        // animate text pulses over the 9 seconds (using repeated vPop already in CSS)
+        // resolve after duration
+        setTimeout(() => {
+            overlay.remove();
+            resolve();
+        }, duration);
+    });
+}
+
 /*
  Yes click behavior:
  - 1st yes: play yesAudio1; lock No; show trap message + yes image
  - 2nd yes: play yesAudio2; show yes2 image + second message
  - 3rd yes: play yesAudio3 (same pattern), run intense fireworks for 5s,
-           then show final images + message + Clear button.
+           then show the 9s Happy Valentines animation, then show final images + message + Clear button.
 */
 function yesClicked(e) {
     if (programEnded) return;
@@ -559,25 +697,30 @@ function yesClicked(e) {
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // run intensified fireworks for 5 seconds then show final content
+        // run intensified fireworks for 5 seconds then show 9s valentine animation,
+        // then show final content (unchanged)
         launchFireworks(5000).then(() => {
-            card.classList.add("sad-card");
-            card.innerHTML = `
-                <div class="romantic-name">Happy Valentine’s 💕</div>
-                <div class="final-images">
-                    <img src="final1.jpg" alt="final image 1">
-                    <img src="final2.jpg" alt="final image 2">
-                </div>
-                <p style="margin-top:14px; text-align:left;">
-                HEY Girl... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
-                Anyways i love you a lot..... Thanks for clicking yes...
-                </p>
-                <div style="margin-top:16px;">
-                    <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
-                </div>
-            `;
-            const clearBtn = document.getElementById('clearBtn');
-            if (clearBtn) clearBtn.onclick = clearAndStop;
+            // show 9s animation
+            showValentineAnimation(9000).then(() => {
+                // After animation completes, show final content exactly as before
+                card.classList.add("sad-card");
+                card.innerHTML = `
+                    <div class="romantic-name">Happy Valentine’s 💕</div>
+                    <div class="final-images">
+                        <img src="final1.jpg" alt="final image 1">
+                        <img src="final2.jpg" alt="final image 2">
+                    </div>
+                    <p style="margin-top:14px; text-align:left;">
+                    HEY Girl... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
+                    Anyways i love you a lot..... Thanks for clicking yes...
+                    </p>
+                    <div style="margin-top:16px;">
+                        <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
+                    </div>
+                `;
+                const clearBtn = document.getElementById('clearBtn');
+                if (clearBtn) clearBtn.onclick = clearAndStop;
+            });
         });
 
         return;
@@ -690,5 +833,3 @@ function restart() {
 
 </body>
 </html>
-
-
