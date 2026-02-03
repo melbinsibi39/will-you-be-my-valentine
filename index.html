@@ -203,19 +203,19 @@ button[disabled] {
 /* single particle for fireworks */
 .firework-particle {
     position: absolute;
-    width: 8px;
-    height: 8px;
     border-radius: 50%;
     opacity: 0;
-    transform: translate(-50%, -50%) scale(0.6);
-    animation: fw 900ms ease-out forwards;
+    transform: translate(-50%, -50%) scale(0.4);
+    animation: fw var(--dur, 900ms) ease-out forwards;
+    will-change: transform, opacity, box-shadow;
 }
 
 /* particle animation will be customized per particle via inline styles */
 @keyframes fw {
-    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
-    60% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.0); }
-    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.4); filter: blur(0px); }
+    50% { opacity: 1; filter: blur(0.6px); }
+    85% { opacity: 0.8; transform: translate(var(--dx), var(--dy)) scale(1.05); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); filter: blur(1px); }
 }
 
 /* make card content accessible when fireworks are showing */
@@ -242,12 +242,9 @@ button[disabled] {
 
 <script>
 /*
-  Behavior:
-  - 1st Yes: play yesAudio1, lock No, show trap message + yes image
-  - 2nd Yes: play yesAudio2, show yes2 image + message
-  - 3rd Yes: play yesAudio3 (same call pattern as other audios), fireworks for 5s,
-           then show final1.jpg + final2.jpg horizontally and final message + Clear button
-  - Clear replaces page content and stops program (no returns)
+  Modified only: the fireworks are made much more intense while keeping
+  the rest of the program unchanged. Fireworks still run for ~5s but
+  produce many more bursts and particles to feel "intensifying".
 */
 
 let noClickCount = 0;
@@ -372,8 +369,12 @@ function handleNo(e) {
     }
 }
 
-/* Launch simple fireworks animation for given duration (ms).
-   Returns a Promise that resolves when animation is complete. */
+/* Intensified fireworks animation:
+   - More bursts
+   - More particles per burst
+   - Sub-bursts for extra sparkle
+   - Larger travel distances and varied sizes
+*/
 function launchFireworks(duration = 5000) {
     return new Promise(resolve => {
         const container = document.createElement('div');
@@ -381,62 +382,101 @@ function launchFireworks(duration = 5000) {
         document.body.appendChild(container);
         card.classList.add('fireworks-visible');
 
-        const colors = ['#ff4d88','#ffd166','#06d6a0','#118ab2','#ef476f','#ffd54f'];
+        const colors = ['#ff4d88','#ffd166','#06d6a0','#118ab2','#ef476f','#ffd54f','#a78bfa','#ffb4a2'];
         const w = window.innerWidth;
         const h = window.innerHeight;
 
-        // create multiple bursts over the duration
-        const bursts = Math.max(6, Math.floor(duration / 800)); // about one burst per 0.8s
+        // more frequent bursts for an intense show
+        const burstIntervalMs = 160; // quicker bursts
+        const bursts = Math.max(20, Math.floor(duration / burstIntervalMs));
         let burstCount = 0;
-        const burstInterval = setInterval(() => {
-            createBurst();
+
+        const burstTimer = setInterval(() => {
+            // create 1-3 near-simultaneous bursts to intensify
+            const simultaneous = 1 + Math.floor(Math.random()*3);
+            for (let s=0;s<simultaneous;s++) {
+                createBurst();
+            }
             burstCount++;
             if (burstCount >= bursts) {
-                clearInterval(burstInterval);
+                clearInterval(burstTimer);
             }
-        }, 600);
+        }, burstIntervalMs);
 
-        // also create an initial burst immediately
-        createBurst();
+        // immediate extra initial bursts
+        for (let i=0;i<3;i++) createBurst();
 
         // after duration remove container and resolve
         setTimeout(() => {
-            // let existing particles finish their animations slightly
+            // leave a short tail time for particles to fade
             setTimeout(() => {
                 container.remove();
                 card.classList.remove('fireworks-visible');
                 resolve();
-            }, 700);
+            }, 800);
         }, duration);
 
         function createBurst() {
             const cx = Math.random() * w;
-            const cy = Math.random() * (h * 0.6); // burst in upper 60% of screen
-            const particles = 18 + Math.floor(Math.random() * 16);
-            for (let i=0;i<particles;i++) {
+            const cy = Math.random() * (h * 0.55); // upper area
+            // Main burst
+            spawnParticles(cx, cy, 28 + Math.floor(Math.random()*36), 60, 350);
+
+            // 1-2 sub-bursts shortly after to create cascading explosions
+            const subCount = 1 + Math.floor(Math.random()*2);
+            for (let i=0;i<subCount;i++) {
+                setTimeout(() => {
+                    const offsetX = (Math.random()-0.5) * 80;
+                    const offsetY = (Math.random()-0.5) * 80;
+                    // smaller sub-burst
+                    spawnParticles(cx + offsetX, cy + offsetY, 12 + Math.floor(Math.random()*22), 30, 180);
+                }, 120 + Math.floor(Math.random()*260));
+            }
+
+            // occasional central rapid spark shower
+            if (Math.random() < 0.35) {
+                setTimeout(() => {
+                    spawnParticles(cx, cy + 30, 40 + Math.floor(Math.random()*40), 20, 220, true);
+                }, 80);
+            }
+        }
+
+        function spawnParticles(cx, cy, count, minDist, maxDist, sparkle=false) {
+            for (let i=0;i<count;i++) {
                 const el = document.createElement('div');
                 el.className = 'firework-particle';
                 const color = colors[Math.floor(Math.random()*colors.length)];
+                // random size for richer effect
+                const size = 6 + Math.floor(Math.random()*16);
+                el.style.width = size + 'px';
+                el.style.height = size + 'px';
                 el.style.background = color;
+                // glow / spark look
+                el.style.boxShadow = `0 0 ${4 + Math.floor(Math.random()*8)}px ${color}, 0 0 ${8 + Math.floor(Math.random()*10)}px ${color}66`;
                 // random angle and distance
                 const angle = Math.random() * Math.PI * 2;
-                const dist = 60 + Math.random()*220;
+                const dist = minDist + Math.random()*(maxDist - minDist);
                 const dx = Math.cos(angle) * dist;
                 const dy = Math.sin(angle) * dist;
-                // set CSS variables used by keyframes
                 el.style.setProperty('--dx', dx + 'px');
                 el.style.setProperty('--dy', dy + 'px');
-                // randomize animation duration/ delay a little by overriding animation-duration
-                const dur = 700 + Math.floor(Math.random()*600);
+                // varied duration for particles for a more natural look
+                const dur = 700 + Math.floor(Math.random()*900);
+                el.style.setProperty('--dur', dur + 'ms');
                 el.style.animationDuration = dur + 'ms';
-                // position at burst center
-                el.style.left = cx + 'px';
-                el.style.top = cy + 'px';
+                // jitter slight horizontal placement to avoid strict centers
+                el.style.left = (cx + (Math.random()-0.5)*8) + 'px';
+                el.style.top = (cy + (Math.random()-0.5)*6) + 'px';
+                // if sparkle, make particles thinner/wider and shorter-lived
+                if (sparkle && Math.random() < 0.6) {
+                    el.style.width = (2 + Math.floor(Math.random()*6)) + 'px';
+                    el.style.height = (8 + Math.floor(Math.random()*16)) + 'px';
+                }
                 container.appendChild(el);
-                // remove particle after its animation
+                // remove after animation finished
                 setTimeout(() => {
                     el.remove();
-                }, dur + 20);
+                }, dur + 40);
             }
         }
     });
@@ -446,8 +486,8 @@ function launchFireworks(duration = 5000) {
  Yes click behavior:
  - 1st yes: play yesAudio1; lock No; show trap message + yes image
  - 2nd yes: play yesAudio2; show yes2 image + second message
- - 3rd yes: play yesAudio3 using same pattern as other audios,
-           run fireworks for 5s, then show two images and final message + Clear button
+ - 3rd yes: play yesAudio3 (same pattern), run intense fireworks for 5s,
+           then show final images + message + Clear button.
 */
 function yesClicked(e) {
     if (programEnded) return;
@@ -519,7 +559,7 @@ function yesClicked(e) {
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // run fireworks for 5 seconds then show final content
+        // run intensified fireworks for 5 seconds then show final content
         launchFireworks(5000).then(() => {
             card.classList.add("sad-card");
             card.innerHTML = `
