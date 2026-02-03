@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Angel Theresa 💖</title>
 
 <style>
@@ -105,6 +105,15 @@ button {
     top: 40px;
 }
 
+/* locked/disabled no button styling */
+button.locked,
+button[disabled] {
+    background: #bfb8bf;
+    color: #6e666e;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 /* Rain */
 .rain {
     position: fixed;
@@ -186,9 +195,10 @@ button {
 
 <script>
 let noClickCount = 0;
-let yesClickCount = 0;       // NEW: counts Yes clicks
+let yesClickCount = 0;       // counts Yes clicks
 let showingMessage = false;
 let heartbreakDone = false;
+let noLocked = false;        // when true, the No button is locked/disabled
 
 const card = document.getElementById("card");
 const voice1 = document.getElementById("voice1");
@@ -206,6 +216,7 @@ document.body.addEventListener("click", () => {
 
 function renderMain() {
     card.classList.remove("sad-card");
+    // If noLocked is true we render the No button with disabled attribute & locked class
     card.innerHTML = `
         <div class="romantic-name">Angel Theresa 💖</div>
         <div class="bear">🐻💖</div>
@@ -213,14 +224,16 @@ function renderMain() {
         ${heartbreakDone ? "" : `
         <div class="buttons">
             <button id="yes">Yes</button>
-            <button id="no">No</button>
+            ${noLocked ? `<button id="no" class="locked" disabled>No</button>` : `<button id="no">No</button>`}
         </div>`}
     `;
 
     if (!heartbreakDone) {
-        document.getElementById("no").onclick = handleNo;
-        // attach yes handler (passes the event so we can stop propagation)
-        document.getElementById("yes").onclick = yesClicked;
+        const yesBtn = document.getElementById("yes");
+        const noBtn = document.getElementById("no");
+        if (yesBtn) yesBtn.onclick = yesClicked;
+        // attach no handler only when not locked
+        if (noBtn && !noLocked) noBtn.onclick = handleNo;
     }
 }
 
@@ -243,7 +256,7 @@ function handleNo(e) {
         showingMessage = true;
         card.innerHTML = `
             <div class="romantic-name">Angel Theresa 💖</div>
-            <img src="how.jpg" class="full-img">
+            <img src="how.jpg" class="full-img" alt="how image">
             <p><small>(Tap anywhere to continue)</small></p>
         `;
     }
@@ -272,8 +285,8 @@ function handleNo(e) {
     }
 }
 
-// NEW: Yes click shows an image and increments yesClickCount.
-// Tapping anywhere (the body listener) will set showingMessage=false and return to the main card.
+// Yes click shows an image and increments yesClickCount.
+// On the FIRST Yes click it also shows the trap message and locks the No button.
 function yesClicked(e) {
     // prevent the click from bubbling to the body immediately
     e.stopPropagation();
@@ -281,9 +294,26 @@ function yesClicked(e) {
     yesClickCount++;
     showingMessage = true;
 
+    if (yesClickCount === 1) {
+        // lock the No button from now on
+        noLocked = true;
+
+        card.innerHTML = `
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <img src="yes.jpg" class="full-img" alt="Yes image">
+            <p>
+            You know it's a trap.<br>
+            You clicked yes once now you can only click on yes.<br>
+            The no button is locked
+            </p>
+            <p><small>(Tap anywhere to continue)</small></p>
+        `;
+        return;
+    }
+
+    // subsequent Yes clicks: show the yes image + count
     card.innerHTML = `
         <div class="romantic-name">Happy Valentine’s 💕</div>
-        <!-- Replace "yes.jpg" with your chosen filename/path -->
         <img src="yes.jpg" class="full-img" alt="Yes image">
         <p>You chose YES 💖 (count: ${yesClickCount})</p>
         <small>(Tap anywhere to continue)</small>
@@ -336,8 +366,10 @@ function restart() {
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
-    // Optionally reset yes count too if you want:
-    // yesClickCount = 0;
+    // reset yes counter and unlock No on restart (optional — change if you want to persist yes count)
+    yesClickCount = 0;
+    noLocked = false;
+
     voice1.pause();
     voice2.pause();
     voice1.currentTime = 0;
