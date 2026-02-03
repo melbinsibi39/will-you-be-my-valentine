@@ -6,7 +6,6 @@
 <title>Angel Theresa 💖</title>
 
 <style>
-/* === NO CHANGES HERE === */
 body {
     margin: 0;
     height: 100vh;
@@ -19,6 +18,9 @@ body {
     transition: background 1.5s;
 }
 
+/* when we need page scroll for the heartbreak scene,
+   allow vertical scrolling and align content to the top so the
+   Restart button can be revealed by scrolling. */
 body.sad-scroll {
     overflow-y: auto !important;
     align-items: flex-start !important;
@@ -50,6 +52,10 @@ body.shake {
     box-shadow: 0 10px 25px rgba(0,0,0,0.35);
     transition: background 1.5s, color 1.5s;
     z-index: 10;
+}
+
+/* make sure card can expand vertically so content can go beyond viewport */
+.card {
     box-sizing: border-box;
     max-width: 92%;
 }
@@ -66,7 +72,9 @@ body.shake {
     margin-bottom: 10px;
 }
 
-.bear { font-size: 60px; }
+.bear {
+    font-size: 60px;
+}
 
 .buttons {
     position: relative;
@@ -97,13 +105,36 @@ button {
     top: 40px;
 }
 
+/* locked/disabled no button styling */
 button.locked,
 button[disabled] {
     background: #bfb8bf;
     color: #6e666e;
     cursor: not-allowed;
+    box-shadow: none;
 }
 
+/* enable-sound overlay */
+#audio-unlock {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index: 9999;
+}
+#audio-unlock button {
+    padding: 14px 22px;
+    font-size: 18px;
+    background: #ff4d88;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+/* Rain */
 .rain {
     position: fixed;
     inset: 0;
@@ -118,9 +149,11 @@ button[disabled] {
 }
 
 @keyframes rainMove {
+    from { background-position: 0 0; }
     to { background-position: 0 200px; }
 }
 
+/* Heartbreak */
 .heart-container {
     position: relative;
     font-size: 90px;
@@ -142,11 +175,17 @@ button[disabled] {
 }
 
 @keyframes crackLeft {
-    to { transform: translate(-70px, 120px) rotate(-35deg); opacity: 0; }
+    to {
+        transform: translate(-70px, 120px) rotate(-35deg);
+        opacity: 0;
+    }
 }
 
 @keyframes crackRight {
-    to { transform: translate(70px, 120px) rotate(35deg); opacity: 0; }
+    to {
+        transform: translate(70px, 120px) rotate(35deg);
+        opacity: 0;
+    }
 }
 
 .restart {
@@ -171,32 +210,59 @@ button[disabled] {
 
 <div class="card" id="card"></div>
 
-<!-- existing NO audios -->
-<audio id="voice1" src="voice1.mp3"></audio>
-<audio id="voice2" src="voice2.mp3"></audio>
+<!-- existing audio elements -->
+<audio id="voice1" src="voice1.mp3" preload="auto" playsinline></audio>
+<audio id="voice2" src="voice2.mp3" preload="auto" playsinline></audio>
 
-<!-- NEW YES audios -->
-<audio id="yesVoice1" src="yes1.mp3"></audio>
-<audio id="yesVoice2" src="yes2.mp3"></audio>
+<!-- yes audio elements with preload/playsinline -->
+<audio id="yesAudio1" src="yes1.mp3" preload="auto" playsinline></audio>
+<audio id="yesAudio2" src="yes2.mp3" preload="auto" playsinline></audio>
+
+<!-- audio-unlock overlay (created/removed dynamically as needed) -->
 
 <script>
 let noClickCount = 0;
-let yesClickCount = 0;
+let yesClickCount = 0;       // counts Yes clicks
 let showingMessage = false;
 let heartbreakDone = false;
-let noLocked = false;
+let noLocked = false;        // when true, the No button is locked/disabled
 
 const card = document.getElementById("card");
 const voice1 = document.getElementById("voice1");
 const voice2 = document.getElementById("voice2");
-const yesVoice1 = document.getElementById("yesVoice1");
-const yesVoice2 = document.getElementById("yesVoice2");
+const yesAudio1 = document.getElementById("yesAudio1");
+const yesAudio2 = document.getElementById("yesAudio2");
 
 renderMain();
 
+/* Preload helper */
+function preloadImage(src, timeoutMs = 5000) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        let timer = null;
+        img.onload = () => {
+            if (timer) clearTimeout(timer);
+            resolve(src);
+        };
+        img.onerror = () => {
+            if (timer) clearTimeout(timer);
+            reject(new Error('Image failed to load: ' + src));
+        };
+        if (timeoutMs) {
+            timer = setTimeout(() => {
+                img.onload = img.onerror = null;
+                reject(new Error('Image load timeout: ' + src));
+            }, timeoutMs);
+        }
+        img.src = src;
+    });
+}
+
+/* One-time message display helper */
 function showTempMessage(html) {
     showingMessage = true;
     card.innerHTML = html;
+
     setTimeout(() => {
         document.addEventListener('click', function closeOnce() {
             showingMessage = false;
@@ -206,6 +272,7 @@ function showTempMessage(html) {
     }, 0);
 }
 
+/* Render main view; respects noLocked */
 function renderMain() {
     card.classList.remove("sad-card");
     card.innerHTML = `
@@ -218,70 +285,260 @@ function renderMain() {
             ${noLocked ? `<button id="no" class="locked" disabled>No</button>` : `<button id="no">No</button>`}
         </div>`}
     `;
+
     if (!heartbreakDone) {
-        document.getElementById("yes").onclick = yesClicked;
+        const yesBtn = document.getElementById("yes");
         const noBtn = document.getElementById("no");
+        if (yesBtn) yesBtn.onclick = yesClicked;
         if (noBtn && !noLocked) noBtn.onclick = handleNo;
     }
 }
 
-async function yesClicked(e) {
+/* Show an overlay with a button to "Enable sound" that the user taps to unlock audio. */
+function showAudioUnlockOverlay() {
+    if (document.getElementById('audio-unlock')) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'audio-unlock';
+    overlay.innerHTML = `<button id="audio-unlock-btn">Enable sound</button>`;
+    document.body.appendChild(overlay);
+
+    const btn = document.getElementById('audio-unlock-btn');
+    btn.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        try {
+            await Promise.all([
+                tryPlayAndPause(voice1),
+                tryPlayAndPause(voice2),
+                tryPlayAndPause(yesAudio1),
+                tryPlayAndPause(yesAudio2)
+            ]);
+        } catch (err) {
+            console.warn('Audio unlock attempt had errors:', err);
+        } finally {
+            overlay.remove();
+        }
+    }, { once: true });
+}
+
+/* Attempts to play an audio element then pause — used to prime playback */
+async function tryPlayAndPause(audioEl) {
+    if (!audioEl) return;
+    try {
+        audioEl.currentTime = 0;
+        await audioEl.play();
+        audioEl.pause();
+        audioEl.currentTime = 0;
+    } catch (err) {
+        throw err;
+    }
+}
+
+/* No click behavior (unchanged except wrapped play with catch) */
+function handleNo(e) {
+    e.stopPropagation();
+
+    if (noClickCount === 1) {
+        voice1.currentTime = 0;
+        voice1.play().catch(err => {
+            console.warn('voice1 play failed:', err);
+            showAudioUnlockOverlay();
+        });
+    }
+
+    if (noClickCount === 2) {
+        voice2.currentTime = 0;
+        voice2.play().catch(err => {
+            console.warn('voice2 play failed:', err);
+            showAudioUnlockOverlay();
+        });
+    }
+
+    if (noClickCount === 0) {
+        noClickCount++;
+        showTempMessage(`
+            <div class="romantic-name">Angel Theresa 💖</div>
+            <img src="how.jpg" class="full-img" alt="how image">
+            <p><small>(Tap anywhere to continue)</small></p>
+        `);
+    }
+    else if (noClickCount === 1) {
+        noClickCount++;
+        showTempMessage(`
+            <div class="romantic-name">Angel Theresa 💖</div>
+            <img src="second.jpg" class="full-img" alt="second image">
+            <p>
+            I know maybe it might be the worst<br>
+            i might be the worst but even though<br>
+            i wanted to try it.<br><br>
+            So your last final chance is coming right up.<br>
+            Please angeleeee no matter even if you click a NO<br>
+            i will wait until the next 14th........
+            </p>
+            <small>(Tap anywhere to continue)</small>
+        `);
+    }
+    else if (noClickCount === 2) {
+        noClickCount++;
+        heartbreakDone = true;
+        heartbreakScene();
+    }
+}
+
+/* Yes click behavior now uses the exact same play method as voice1/voice2 */
+function yesClicked(e) {
     e.stopPropagation();
     yesClickCount++;
 
     if (yesClickCount === 1) {
         noLocked = true;
-        yesVoice1.currentTime = 0;
-        yesVoice1.play();
-    }
 
-    if (yesClickCount === 2) {
-        yesVoice2.currentTime = 0;
-        yesVoice2.play();
-    }
+        // play yesAudio1 the same way as voice1/voice2
+        yesAudio1.currentTime = 0;
+        yesAudio1.play().catch(err => {
+            console.warn('yesAudio1 play failed:', err);
+            showAudioUnlockOverlay();
+        });
 
-    // ORIGINAL LOGIC BELOW (UNCHANGED)
-    if (yesClickCount === 1) {
-        showTempMessage(`
-            <div class="romantic-name">Happy Valentine’s 💕</div>
-            <img src="yes.jpg" class="full-img">
-            <p>You know it's a trap.<br>The no button is locked</p>
-            <small>(Tap anywhere to continue)</small>
-        `);
+        preloadImage('yes.jpg').then(() => {
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <img src="yes.jpg" class="full-img" alt="Yes image">
+                <p>
+                You know it's a trap.<br>
+                You clicked yes once now you can only click on yes.<br>
+                The no button is locked
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        }).catch((err) => {
+            console.warn(err);
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <p>
+                You know it's a trap.<br>
+                You clicked yes once now you can only click on yes.<br>
+                The no button is locked
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        });
+
         return;
     }
 
     if (yesClickCount === 2) {
-        showTempMessage(`
-            <div class="romantic-name">Happy Valentine’s 💕</div>
-            <img src="yes2.jpg" class="full-img">
-            <p>HEY Cutieeee... final chance 💖</p>
-            <small>(Tap anywhere to continue)</small>
-        `);
+        // play yesAudio2 the same way as voice1/voice2
+        yesAudio2.currentTime = 0;
+        yesAudio2.play().catch(err => {
+            console.warn('yesAudio2 play failed:', err);
+            showAudioUnlockOverlay();
+        });
+
+        preloadImage('yes2.jpg').then(() => {
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <img src="yes2.jpg" class="full-img" alt="Second yes image">
+                <p>
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        }).catch((err) => {
+            console.warn(err);
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <p>
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        });
+
         return;
     }
 
-    showTempMessage(`
-        <div class="romantic-name">Happy Valentine’s 💕</div>
-        <img src="yes.jpg" class="full-img">
-        <p>You chose YES 💖 (count: ${yesClickCount})</p>
-        <small>(Tap anywhere to continue)</small>
-    `);
-}
-
-function restart() {
-    noClickCount = 0;
-    yesClickCount = 0;
-    heartbreakDone = false;
-    noLocked = false;
-
-    [voice1, voice2, yesVoice1, yesVoice2].forEach(a => {
-        a.pause();
-        a.currentTime = 0;
+    // subsequent yes clicks: play yesAudio1 same as voice1/voice2
+    yesAudio1.currentTime = 0;
+    yesAudio1.play().catch(err => {
+        console.warn('yesAudio1 (subsequent) play failed:', err);
+        showAudioUnlockOverlay();
     });
 
-    document.body.classList.remove("sad", "shake", "sad-scroll");
-    window.scrollTo({ top: 0 });
+    preloadImage('yes.jpg').then(() => {
+        showTempMessage(`
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <img src="yes.jpg" class="full-img" alt="Yes image">
+            <p>You chose YES 💖 (count: ${yesClickCount})</p>
+            <small>(Tap anywhere to continue)</small>
+        `);
+    }).catch((err) => {
+        console.warn(err);
+        showTempMessage(`
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <p>You chose YES 💖 (count: ${yesClickCount})</p>
+            <small>(Tap anywhere to continue)</small>
+        `);
+    });
+}
+
+/* Heartbreak scene unchanged except scroll fix */
+function heartbreakScene() {
+    document.body.classList.add("sad", "shake");
+    card.classList.add("sad-card");
+
+    const rain = document.createElement("div");
+    rain.className = "rain";
+    document.body.appendChild(rain);
+
+    card.innerHTML = `
+        <div class="romantic-name">Angel Theresa 💖</div>
+        <img src="third.jpg" class="full-img">
+        <div class="heart-container">
+            <div class="heart-left">❤️</div>
+            <div class="heart-right">❤️</div>
+        </div>
+        <p>
+            Yeah you broke my heart<br>
+            but no matter what<br>
+            still i love youuuuu….
+        </p>
+        <p><strong>
+            if you wanna click yes go all the way back and restart again
+        </strong></p>
+        <button class="restart" onclick="restart()">Restart</button>
+    `;
+
+    document.body.classList.add('sad-scroll');
+
+    setTimeout(() => {
+        const restartBtn = document.querySelector('.restart');
+        if (restartBtn) {
+            restartBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+    }, 80);
+}
+
+/* Restart resets counters and pauses audio */
+function restart() {
+    noClickCount = 0;
+    heartbreakDone = false;
+    showingMessage = false;
+    yesClickCount = 0;
+    noLocked = false;
+
+    try { voice1.pause(); voice1.currentTime = 0; } catch {}
+    try { voice2.pause(); voice2.currentTime = 0; } catch {}
+    try { yesAudio1.pause(); yesAudio1.currentTime = 0; } catch {}
+    try { yesAudio2.pause(); yesAudio2.currentTime = 0; } catch {}
+
+    document.body.classList.remove("sad", "shake");
+    document.body.classList.remove('sad-scroll');
+    window.scrollTo({ top: 0, behavior: 'auto' });
     renderMain();
 }
 </script>
