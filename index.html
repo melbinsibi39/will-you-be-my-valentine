@@ -18,7 +18,7 @@ body {
     transition: background 1.5s;
 }
 
-/* NEW: when we need page scroll for the heartbreak scene,
+/* when we need page scroll for the heartbreak scene,
    allow vertical scrolling and align content to the top so the
    Restart button can be revealed by scrolling. */
 body.sad-scroll {
@@ -54,7 +54,7 @@ body.shake {
     z-index: 10;
 }
 
-/* NEW: make sure card can expand vertically so content can go beyond viewport */
+/* make sure card can expand vertically so content can go beyond viewport */
 .card {
     box-sizing: border-box;
     max-width: 92%;
@@ -224,6 +224,7 @@ function renderMain() {
 function handleNo(e) {
     e.stopPropagation();
 
+    // play voice1 on the 2nd click, voice2 on the 3rd (preserves original behavior)
     if (noClickCount === 1) {
         voice1.currentTime = 0;
         voice1.play();
@@ -244,10 +245,13 @@ function handleNo(e) {
         `;
     }
     else if (noClickCount === 1) {
+        // 2nd click: show image + message, and voice1 is played above
         noClickCount++;
         showingMessage = true;
         card.innerHTML = `
             <div class="romantic-name">Angel Theresa 💖</div>
+            <!-- NEW: image shown on the 2nd No click -->
+            <img src="second.jpg" class="full-img" alt="second image">
             <p>
             I know maybe it might be the worst<br>
             i might be the worst but even though<br>
@@ -293,18 +297,16 @@ function heartbreakScene() {
         <button class="restart" onclick="restart()">Restart</button>
     `;
 
-    /* NEW: allow the page to scroll and align content to top so the Restart button
-       can be reached on small screens. Then automatically scroll the Restart into view. */
+    // allow the page to scroll and align content to top so the Restart button
+    // can be reached on small screens. Then automatically scroll the Restart into view.
     document.body.classList.add('sad-scroll');
 
     // give the DOM a tick so the restart button exists, then scroll to it
     setTimeout(() => {
         const restartBtn = document.querySelector('.restart');
         if (restartBtn) {
-            // Smoothly scroll the restart button into center view
             restartBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-            // fallback: scroll to bottom of body
             window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
         }
     }, 80);
@@ -319,9 +321,9 @@ function restart() {
     voice1.currentTime = 0;
     voice2.currentTime = 0;
     document.body.classList.remove("sad", "shake");
-    // NEW: restore original overflow/centering behavior
+    // restore original overflow/centering behavior
     document.body.classList.remove('sad-scroll');
-    // optional: scroll back to top so the main card is centered again
+    // scroll back to top so the main card is centered again
     window.scrollTo({ top: 0, behavior: 'instant' });
     renderMain();
 }
