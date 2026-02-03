@@ -190,8 +190,13 @@ button[disabled] {
 
 <div class="card" id="card"></div>
 
+<!-- existing audio elements -->
 <audio id="voice1" src="voice1.mp3"></audio>
 <audio id="voice2" src="voice2.mp3"></audio>
+
+<!-- NEW: audio files for first and second Yes clicks -->
+<audio id="yesAudio1" src="yes1.mp3"></audio>
+<audio id="yesAudio2" src="yes2.mp3"></audio>
 
 <script>
 let noClickCount = 0;
@@ -203,6 +208,8 @@ let noLocked = false;        // when true, the No button is locked/disabled
 const card = document.getElementById("card");
 const voice1 = document.getElementById("voice1");
 const voice2 = document.getElementById("voice2");
+const yesAudio1 = document.getElementById("yesAudio1"); // new
+const yesAudio2 = document.getElementById("yesAudio2"); // new
 
 renderMain();
 
@@ -283,12 +290,12 @@ function handleNo(e) {
     // play voice1 on the 2nd click, voice2 on the 3rd (preserves original behavior)
     if (noClickCount === 1) {
         voice1.currentTime = 0;
-        voice1.play();
+        voice1.play().catch(()=>{});
     }
 
     if (noClickCount === 2) {
         voice2.currentTime = 0;
-        voice2.play();
+        voice2.play().catch(()=>{});
     }
 
     if (noClickCount === 0) {
@@ -324,9 +331,10 @@ function handleNo(e) {
 }
 
 /*
- Yes click behavior (preloads images and handles missing files gracefully):
- - 1st yes: lock No, show yes.jpg + trap message
- - 2nd yes: show yes2.jpg + the HEY Cutieeee message
+ Yes click behavior (preloads images and handles missing files gracefully).
+ Now also plays audio for the 1st and 2nd Yes clicks:
+ - 1st yes: play yesAudio1, lock No, show yes.jpg + trap message
+ - 2nd yes: play yesAudio2, show yes2.jpg + the HEY Cutieeee message
  - subsequent: show yes.jpg + running count
 */
 async function yesClicked(e) {
@@ -338,6 +346,15 @@ async function yesClicked(e) {
     if (yesClickCount === 1) {
         // lock the No button from now on
         noLocked = true;
+
+        // try to play the first-yes audio (best-effort)
+        try {
+            yesAudio1.currentTime = 0;
+            await yesAudio1.play();
+        } catch (err) {
+            // ignore play errors (autoplay policies, etc.)
+            console.warn('yesAudio1 play failed', err);
+        }
 
         // preload yes.jpg (optional) and then show the message; fallback to showing message without image on error
         try {
@@ -369,6 +386,14 @@ async function yesClicked(e) {
     }
 
     if (yesClickCount === 2) {
+        // try to play the second-yes audio (best-effort)
+        try {
+            yesAudio2.currentTime = 0;
+            await yesAudio2.play();
+        } catch (err) {
+            console.warn('yesAudio2 play failed', err);
+        }
+
         // second yes: preload yes2.jpg and then show different image + special message
         try {
             await preloadImage('yes2.jpg');
@@ -376,8 +401,8 @@ async function yesClicked(e) {
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <img src="yes2.jpg" class="full-img" alt="Second yes image">
                 <p>
-                HEY Cutieeee, you clicked again on yes. The next one is your final.<br>
-                If you click on yes again then i will become the happiest person on EARTH....
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
@@ -465,10 +490,12 @@ function restart() {
     yesClickCount = 0;
     noLocked = false;
 
-    voice1.pause();
-    voice2.pause();
-    voice1.currentTime = 0;
-    voice2.currentTime = 0;
+    // stop/pause all audios (existing and new)
+    try { voice1.pause(); voice1.currentTime = 0; } catch {}
+    try { voice2.pause(); voice2.currentTime = 0; } catch {}
+    try { yesAudio1.pause(); yesAudio1.currentTime = 0; } catch {}
+    try { yesAudio2.pause(); yesAudio2.currentTime = 0; } catch {}
+
     document.body.classList.remove("sad", "shake");
     // restore original overflow/centering behavior
     document.body.classList.remove('sad-scroll');
@@ -480,6 +507,3 @@ function restart() {
 
 </body>
 </html>
-
-
-
