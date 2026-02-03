@@ -18,6 +18,15 @@ body {
     transition: background 1.5s;
 }
 
+/* NEW: when we need page scroll for the heartbreak scene,
+   allow vertical scrolling and align content to the top so the
+   Restart button can be revealed by scrolling. */
+body.sad-scroll {
+    overflow-y: auto !important;
+    align-items: flex-start !important;
+    padding-top: 40px;
+}
+
 body.sad {
     background: radial-gradient(circle at top, #2b1a2f, #060308);
 }
@@ -43,6 +52,12 @@ body.shake {
     box-shadow: 0 10px 25px rgba(0,0,0,0.35);
     transition: background 1.5s, color 1.5s;
     z-index: 10;
+}
+
+/* NEW: make sure card can expand vertically so content can go beyond viewport */
+.card {
+    box-sizing: border-box;
+    max-width: 92%;
 }
 
 .card.sad-card {
@@ -252,6 +267,7 @@ function handleNo(e) {
 }
 
 function heartbreakScene() {
+    // keep original behavior
     document.body.classList.add("sad", "shake");
     card.classList.add("sad-card");
 
@@ -276,6 +292,22 @@ function heartbreakScene() {
         </strong></p>
         <button class="restart" onclick="restart()">Restart</button>
     `;
+
+    /* NEW: allow the page to scroll and align content to top so the Restart button
+       can be reached on small screens. Then automatically scroll the Restart into view. */
+    document.body.classList.add('sad-scroll');
+
+    // give the DOM a tick so the restart button exists, then scroll to it
+    setTimeout(() => {
+        const restartBtn = document.querySelector('.restart');
+        if (restartBtn) {
+            // Smoothly scroll the restart button into center view
+            restartBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            // fallback: scroll to bottom of body
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+    }, 80);
 }
 
 function restart() {
@@ -287,6 +319,10 @@ function restart() {
     voice1.currentTime = 0;
     voice2.currentTime = 0;
     document.body.classList.remove("sad", "shake");
+    // NEW: restore original overflow/centering behavior
+    document.body.classList.remove('sad-scroll');
+    // optional: scroll back to top so the main card is centered again
+    window.scrollTo({ top: 0, behavior: 'instant' });
     renderMain();
 }
 
