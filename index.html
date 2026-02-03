@@ -44,9 +44,11 @@ body.shake {
     transition: background 1.5s, color 1.5s;
     z-index: 10;
 
-    /* ✅ ONLY FIX */
+    /* ✅ FIX (ONLY CHANGE) */
+    height: auto;
     max-height: 90vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .card.sad-card {
@@ -252,12 +254,12 @@ function handleNo(e) {
 
 function heartbreakScene() {
     document.body.classList.add("sad", "shake");
-    card.classList.add("sad-card");
 
     const rain = document.createElement("div");
     rain.className = "rain";
     document.body.appendChild(rain);
 
+    card.classList.add("sad-card");
     card.innerHTML = `
         <img src="third.jpg" class="full-img">
         <div class="heart-container">
