@@ -296,7 +296,6 @@ function renderMain() {
 
 /* Show an overlay with a button to "Enable sound" that the user taps to unlock audio. */
 function showAudioUnlockOverlay() {
-    // If an overlay already exists, do nothing
     if (document.getElementById('audio-unlock')) return;
 
     const overlay = document.createElement('div');
@@ -308,7 +307,6 @@ function showAudioUnlockOverlay() {
     btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
         try {
-            // Try to play and immediately pause each audio to "prime" them
             await Promise.all([
                 tryPlayAndPause(voice1),
                 tryPlayAndPause(voice2),
@@ -332,7 +330,6 @@ async function tryPlayAndPause(audioEl) {
         audioEl.pause();
         audioEl.currentTime = 0;
     } catch (err) {
-        // propagate so caller can know it failed, but don't crash
         throw err;
     }
 }
@@ -345,7 +342,6 @@ function handleNo(e) {
         voice1.currentTime = 0;
         voice1.play().catch(err => {
             console.warn('voice1 play failed:', err);
-            // show overlay to allow user to enable audio manually
             showAudioUnlockOverlay();
         });
     }
@@ -389,25 +385,22 @@ function handleNo(e) {
     }
 }
 
-/* Yes click behavior with improved audio handling */
-async function yesClicked(e) {
+/* Yes click behavior now uses the exact same play method as voice1/voice2 */
+function yesClicked(e) {
     e.stopPropagation();
     yesClickCount++;
 
     if (yesClickCount === 1) {
         noLocked = true;
 
-        // Try to play yesAudio1; if blocked, show unlock overlay
-        try {
-            yesAudio1.currentTime = 0;
-            await yesAudio1.play();
-        } catch (err) {
-            console.warn('yesAudio1 play blocked:', err);
+        // play yesAudio1 the same way as voice1/voice2
+        yesAudio1.currentTime = 0;
+        yesAudio1.play().catch(err => {
+            console.warn('yesAudio1 play failed:', err);
             showAudioUnlockOverlay();
-        }
+        });
 
-        try {
-            await preloadImage('yes.jpg');
+        preloadImage('yes.jpg').then(() => {
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <img src="yes.jpg" class="full-img" alt="Yes image">
@@ -418,7 +411,8 @@ async function yesClicked(e) {
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-        } catch (err) {
+        }).catch((err) => {
+            console.warn(err);
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
@@ -428,23 +422,20 @@ async function yesClicked(e) {
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-            console.warn(err);
-        }
+        });
+
         return;
     }
 
     if (yesClickCount === 2) {
-        // Try to play yesAudio2; if blocked, show unlock overlay
-        try {
-            yesAudio2.currentTime = 0;
-            await yesAudio2.play();
-        } catch (err) {
-            console.warn('yesAudio2 play blocked:', err);
+        // play yesAudio2 the same way as voice1/voice2
+        yesAudio2.currentTime = 0;
+        yesAudio2.play().catch(err => {
+            console.warn('yesAudio2 play failed:', err);
             showAudioUnlockOverlay();
-        }
+        });
 
-        try {
-            await preloadImage('yes2.jpg');
+        preloadImage('yes2.jpg').then(() => {
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <img src="yes2.jpg" class="full-img" alt="Second yes image">
@@ -454,7 +445,8 @@ async function yesClicked(e) {
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-        } catch (err) {
+        }).catch((err) => {
+            console.warn(err);
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
@@ -463,36 +455,33 @@ async function yesClicked(e) {
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-            console.warn(err);
-        }
+        });
+
         return;
     }
 
-    // subsequent yes clicks: best-effort play (no special audio)
-    try {
-        yesAudio1.currentTime = 0;
-        await yesAudio1.play();
-    } catch (err) {
-        console.warn('yesAudio1 (subsequent) play blocked:', err);
+    // subsequent yes clicks: play yesAudio1 same as voice1/voice2
+    yesAudio1.currentTime = 0;
+    yesAudio1.play().catch(err => {
+        console.warn('yesAudio1 (subsequent) play failed:', err);
         showAudioUnlockOverlay();
-    }
+    });
 
-    try {
-        await preloadImage('yes.jpg');
+    preloadImage('yes.jpg').then(() => {
         showTempMessage(`
             <div class="romantic-name">Happy Valentine’s 💕</div>
             <img src="yes.jpg" class="full-img" alt="Yes image">
             <p>You chose YES 💖 (count: ${yesClickCount})</p>
             <small>(Tap anywhere to continue)</small>
         `);
-    } catch (err) {
+    }).catch((err) => {
+        console.warn(err);
         showTempMessage(`
             <div class="romantic-name">Happy Valentine’s 💕</div>
             <p>You chose YES 💖 (count: ${yesClickCount})</p>
             <small>(Tap anywhere to continue)</small>
         `);
-        console.warn(err);
-    }
+    });
 }
 
 /* Heartbreak scene unchanged except scroll fix */
