@@ -18,9 +18,7 @@ body {
     transition: background 1.5s;
 }
 
-/* when we need page scroll for the heartbreak scene,
-   allow vertical scrolling and align content to the top so the
-   Restart button can be revealed by scrolling. */
+/* when we need page scroll for the heartbreak scene */
 body.sad-scroll {
     overflow-y: auto !important;
     align-items: flex-start !important;
@@ -52,10 +50,6 @@ body.shake {
     box-shadow: 0 10px 25px rgba(0,0,0,0.35);
     transition: background 1.5s, color 1.5s;
     z-index: 10;
-}
-
-/* make sure card can expand vertically so content can go beyond viewport */
-.card {
     box-sizing: border-box;
     max-width: 92%;
 }
@@ -112,26 +106,6 @@ button[disabled] {
     color: #6e666e;
     cursor: not-allowed;
     box-shadow: none;
-}
-
-/* enable-sound overlay */
-#audio-unlock {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.55);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index: 9999;
-}
-#audio-unlock button {
-    padding: 14px 22px;
-    font-size: 18px;
-    background: #ff4d88;
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    cursor: pointer;
 }
 
 /* Rain */
@@ -203,6 +177,52 @@ button[disabled] {
     border-radius: 14px;
     margin-bottom: 15px;
 }
+
+/* Final two images horizontally */
+.final-images {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 12px;
+}
+.final-images img {
+    width: calc(50% - 6px);
+    border-radius: 12px;
+    object-fit: cover;
+}
+
+/* Fireworks / confetti container */
+.fireworks {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+    z-index: 9998;
+}
+
+/* single particle for fireworks */
+.firework-particle {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.6);
+    animation: fw 900ms ease-out forwards;
+}
+
+/* particle animation will be customized per particle via inline styles */
+@keyframes fw {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.6); }
+    60% { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.0); }
+    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.2); }
+}
+
+/* make card content accessible when fireworks are showing */
+.card.fireworks-visible {
+    z-index: 9999;
+    position: relative;
+}
 </style>
 </head>
 
@@ -210,32 +230,43 @@ button[disabled] {
 
 <div class="card" id="card"></div>
 
-<!-- existing audio elements -->
+<!-- existing voice audios -->
 <audio id="voice1" src="voice1.mp3" preload="auto" playsinline></audio>
 <audio id="voice2" src="voice2.mp3" preload="auto" playsinline></audio>
 
-<!-- yes audio elements with preload/playsinline -->
+<!-- yes audios (played the same way as voice1/voice2) -->
 <audio id="yesAudio1" src="yes1.mp3" preload="auto" playsinline></audio>
 <audio id="yesAudio2" src="yes2.mp3" preload="auto" playsinline></audio>
-
-<!-- audio-unlock overlay (created/removed dynamically as needed) -->
+<!-- third-yes audio -->
+<audio id="yesAudio3" src="yes3.mp3" preload="auto" playsinline></audio>
 
 <script>
+/*
+  Behavior:
+  - 1st Yes: play yesAudio1, lock No, show trap message + yes image
+  - 2nd Yes: play yesAudio2, show yes2 image + message
+  - 3rd Yes: play yesAudio3 (same call pattern as other audios), fireworks for 5s,
+           then show final1.jpg + final2.jpg horizontally and final message + Clear button
+  - Clear replaces page content and stops program (no returns)
+*/
+
 let noClickCount = 0;
 let yesClickCount = 0;       // counts Yes clicks
 let showingMessage = false;
 let heartbreakDone = false;
 let noLocked = false;        // when true, the No button is locked/disabled
+let programEnded = false;    // when true, the app stops responding (after Clear)
 
 const card = document.getElementById("card");
 const voice1 = document.getElementById("voice1");
 const voice2 = document.getElementById("voice2");
 const yesAudio1 = document.getElementById("yesAudio1");
 const yesAudio2 = document.getElementById("yesAudio2");
+const yesAudio3 = document.getElementById("yesAudio3");
 
 renderMain();
 
-/* Preload helper */
+/* Basic image preload helper */
 function preloadImage(src, timeoutMs = 5000) {
     return new Promise((resolve, reject) => {
         const img = new Image();
@@ -263,6 +294,7 @@ function showTempMessage(html) {
     showingMessage = true;
     card.innerHTML = html;
 
+    // one-time click to return to main
     setTimeout(() => {
         document.addEventListener('click', function closeOnce() {
             showingMessage = false;
@@ -272,9 +304,10 @@ function showTempMessage(html) {
     }, 0);
 }
 
-/* Render main view; respects noLocked */
 function renderMain() {
+    if (programEnded) return;
     card.classList.remove("sad-card");
+    card.classList.remove("fireworks-visible");
     card.innerHTML = `
         <div class="romantic-name">Angel Theresa 💖</div>
         <div class="bear">🐻💖</div>
@@ -294,71 +327,25 @@ function renderMain() {
     }
 }
 
-/* Show an overlay with a button to "Enable sound" that the user taps to unlock audio. */
-function showAudioUnlockOverlay() {
-    if (document.getElementById('audio-unlock')) return;
-
-    const overlay = document.createElement('div');
-    overlay.id = 'audio-unlock';
-    overlay.innerHTML = `<button id="audio-unlock-btn">Enable sound</button>`;
-    document.body.appendChild(overlay);
-
-    const btn = document.getElementById('audio-unlock-btn');
-    btn.addEventListener('click', async (ev) => {
-        ev.stopPropagation();
-        try {
-            await Promise.all([
-                tryPlayAndPause(voice1),
-                tryPlayAndPause(voice2),
-                tryPlayAndPause(yesAudio1),
-                tryPlayAndPause(yesAudio2)
-            ]);
-        } catch (err) {
-            console.warn('Audio unlock attempt had errors:', err);
-        } finally {
-            overlay.remove();
-        }
-    }, { once: true });
-}
-
-/* Attempts to play an audio element then pause — used to prime playback */
-async function tryPlayAndPause(audioEl) {
-    if (!audioEl) return;
-    try {
-        audioEl.currentTime = 0;
-        await audioEl.play();
-        audioEl.pause();
-        audioEl.currentTime = 0;
-    } catch (err) {
-        throw err;
-    }
-}
-
-/* No click behavior (unchanged except wrapped play with catch) */
 function handleNo(e) {
+    if (programEnded) return;
     e.stopPropagation();
 
     if (noClickCount === 1) {
         voice1.currentTime = 0;
-        voice1.play().catch(err => {
-            console.warn('voice1 play failed:', err);
-            showAudioUnlockOverlay();
-        });
+        voice1.play().catch(()=>{});
     }
 
     if (noClickCount === 2) {
         voice2.currentTime = 0;
-        voice2.play().catch(err => {
-            console.warn('voice2 play failed:', err);
-            showAudioUnlockOverlay();
-        });
+        voice2.play().catch(()=>{});
     }
 
     if (noClickCount === 0) {
         noClickCount++;
         showTempMessage(`
             <div class="romantic-name">Angel Theresa 💖</div>
-            <img src="how.jpg" class="full-img" alt="how image">
+            <img src="how.jpg" class="full-img">
             <p><small>(Tap anywhere to continue)</small></p>
         `);
     }
@@ -385,20 +372,93 @@ function handleNo(e) {
     }
 }
 
-/* Yes click behavior now uses the exact same play method as voice1/voice2 */
+/* Launch simple fireworks animation for given duration (ms).
+   Returns a Promise that resolves when animation is complete. */
+function launchFireworks(duration = 5000) {
+    return new Promise(resolve => {
+        const container = document.createElement('div');
+        container.className = 'fireworks';
+        document.body.appendChild(container);
+        card.classList.add('fireworks-visible');
+
+        const colors = ['#ff4d88','#ffd166','#06d6a0','#118ab2','#ef476f','#ffd54f'];
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+
+        // create multiple bursts over the duration
+        const bursts = Math.max(6, Math.floor(duration / 800)); // about one burst per 0.8s
+        let burstCount = 0;
+        const burstInterval = setInterval(() => {
+            createBurst();
+            burstCount++;
+            if (burstCount >= bursts) {
+                clearInterval(burstInterval);
+            }
+        }, 600);
+
+        // also create an initial burst immediately
+        createBurst();
+
+        // after duration remove container and resolve
+        setTimeout(() => {
+            // let existing particles finish their animations slightly
+            setTimeout(() => {
+                container.remove();
+                card.classList.remove('fireworks-visible');
+                resolve();
+            }, 700);
+        }, duration);
+
+        function createBurst() {
+            const cx = Math.random() * w;
+            const cy = Math.random() * (h * 0.6); // burst in upper 60% of screen
+            const particles = 18 + Math.floor(Math.random() * 16);
+            for (let i=0;i<particles;i++) {
+                const el = document.createElement('div');
+                el.className = 'firework-particle';
+                const color = colors[Math.floor(Math.random()*colors.length)];
+                el.style.background = color;
+                // random angle and distance
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 60 + Math.random()*220;
+                const dx = Math.cos(angle) * dist;
+                const dy = Math.sin(angle) * dist;
+                // set CSS variables used by keyframes
+                el.style.setProperty('--dx', dx + 'px');
+                el.style.setProperty('--dy', dy + 'px');
+                // randomize animation duration/ delay a little by overriding animation-duration
+                const dur = 700 + Math.floor(Math.random()*600);
+                el.style.animationDuration = dur + 'ms';
+                // position at burst center
+                el.style.left = cx + 'px';
+                el.style.top = cy + 'px';
+                container.appendChild(el);
+                // remove particle after its animation
+                setTimeout(() => {
+                    el.remove();
+                }, dur + 20);
+            }
+        }
+    });
+}
+
+/*
+ Yes click behavior:
+ - 1st yes: play yesAudio1; lock No; show trap message + yes image
+ - 2nd yes: play yesAudio2; show yes2 image + second message
+ - 3rd yes: play yesAudio3 using same pattern as other audios,
+           run fireworks for 5s, then show two images and final message + Clear button
+*/
 function yesClicked(e) {
+    if (programEnded) return;
     e.stopPropagation();
     yesClickCount++;
 
     if (yesClickCount === 1) {
         noLocked = true;
 
-        // play yesAudio1 the same way as voice1/voice2
         yesAudio1.currentTime = 0;
-        yesAudio1.play().catch(err => {
-            console.warn('yesAudio1 play failed:', err);
-            showAudioUnlockOverlay();
-        });
+        yesAudio1.play().catch(()=>{});
 
         preloadImage('yes.jpg').then(() => {
             showTempMessage(`
@@ -411,14 +471,13 @@ function yesClicked(e) {
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-        }).catch((err) => {
-            console.warn(err);
+        }).catch(() => {
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
                 You know it's a trap.<br>
                 You clicked yes once now you can only click on yes.<br>
-                The no button is now locked
+                The no button is locked
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
@@ -428,25 +487,20 @@ function yesClicked(e) {
     }
 
     if (yesClickCount === 2) {
-        // play yesAudio2 the same way as voice1/voice2
         yesAudio2.currentTime = 0;
-        yesAudio2.play().catch(err => {
-            console.warn('yesAudio2 play failed:', err);
-            showAudioUnlockOverlay();
-        });
+        yesAudio2.play().catch(()=>{});
 
         preloadImage('yes2.jpg').then(() => {
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <img src="yes2.jpg" class="full-img" alt="Second yes image">
                 <p>
-                HEY Cutieeee, you clicked on the yes again. The next one is your final.<br>
-                If you click yes then i will become the happiest person on EARTH....
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
                 </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
-        }).catch((err) => {
-            console.warn(err);
+        }).catch(() => {
             showTempMessage(`
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
@@ -460,12 +514,38 @@ function yesClicked(e) {
         return;
     }
 
-    // subsequent yes clicks: play yesAudio1 same as voice1/voice2
+    if (yesClickCount === 3) {
+        // play yesAudio3 exactly like the others
+        yesAudio3.currentTime = 0;
+        yesAudio3.play().catch(()=>{});
+
+        // run fireworks for 5 seconds then show final content
+        launchFireworks(5000).then(() => {
+            card.classList.add("sad-card");
+            card.innerHTML = `
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <div class="final-images">
+                    <img src="final1.jpg" alt="final image 1">
+                    <img src="final2.jpg" alt="final image 2">
+                </div>
+                <p style="margin-top:14px; text-align:left;">
+                HEY Girl... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
+                Anyways i love you a lot..... Thanks for clicking yes...
+                </p>
+                <div style="margin-top:16px;">
+                    <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
+                </div>
+            `;
+            const clearBtn = document.getElementById('clearBtn');
+            if (clearBtn) clearBtn.onclick = clearAndStop;
+        });
+
+        return;
+    }
+
+    // subsequent yes clicks
     yesAudio1.currentTime = 0;
-    yesAudio1.play().catch(err => {
-        console.warn('yesAudio1 (subsequent) play failed:', err);
-        showAudioUnlockOverlay();
-    });
+    yesAudio1.play().catch(()=>{});
 
     preloadImage('yes.jpg').then(() => {
         showTempMessage(`
@@ -474,8 +554,7 @@ function yesClicked(e) {
             <p>You chose YES 💖 (count: ${yesClickCount})</p>
             <small>(Tap anywhere to continue)</small>
         `);
-    }).catch((err) => {
-        console.warn(err);
+    }).catch(() => {
         showTempMessage(`
             <div class="romantic-name">Happy Valentine’s 💕</div>
             <p>You chose YES 💖 (count: ${yesClickCount})</p>
@@ -484,7 +563,7 @@ function yesClicked(e) {
     });
 }
 
-/* Heartbreak scene unchanged except scroll fix */
+/* Heartbreak scene (unchanged except scroll fix) */
 function heartbreakScene() {
     document.body.classList.add("sad", "shake");
     card.classList.add("sad-card");
@@ -523,8 +602,33 @@ function heartbreakScene() {
     }, 80);
 }
 
-/* Restart resets counters and pauses audio */
+/* Clear and stop program (no returns) */
+function clearAndStop() {
+    // mark program ended
+    programEnded = true;
+
+    // pause audios
+    try { voice1.pause(); voice1.currentTime = 0; } catch {}
+    try { voice2.pause(); voice2.currentTime = 0; } catch {}
+    try { yesAudio1.pause(); yesAudio1.currentTime = 0; } catch {}
+    try { yesAudio2.pause(); yesAudio2.currentTime = 0; } catch {}
+    try { yesAudio3.pause(); yesAudio3.currentTime = 0; } catch {}
+
+    // remove any fireworks containers that might remain
+    const fw = document.querySelectorAll('.fireworks');
+    fw.forEach(n => n.remove());
+
+    // remove rain if present
+    const rain = document.querySelector('.rain');
+    if (rain) rain.remove();
+
+    // Replace the entire document body with a cleared state — no way back
+    document.body.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:Arial, sans-serif;"><div style="text-align:center;color:#444;"><h2>Cleared</h2><p>The page has been cleared.</p></div></div>';
+}
+
+/* Restart resets counters and pauses audio (restores original behavior) */
 function restart() {
+    if (programEnded) return;
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
@@ -535,6 +639,7 @@ function restart() {
     try { voice2.pause(); voice2.currentTime = 0; } catch {}
     try { yesAudio1.pause(); yesAudio1.currentTime = 0; } catch {}
     try { yesAudio2.pause(); yesAudio2.currentTime = 0; } catch {}
+    try { yesAudio3.pause(); yesAudio3.currentTime = 0; } catch {}
 
     document.body.classList.remove("sad", "shake");
     document.body.classList.remove('sad-scroll');
@@ -545,4 +650,3 @@ function restart() {
 
 </body>
 </html>
-
