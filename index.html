@@ -237,7 +237,8 @@ button[disabled] {
     letter-spacing: 2px;
     font-weight: 900;
     -webkit-text-stroke: 1px rgba(0,0,0,0.12);
-    background: linear-gradient(90deg, #ff6fa3, #ffd166, #ffb4a2);
+    /* MADE MORE ATTRACTIVE: richer multicolor gradient */
+    background: linear-gradient(90deg, #ff6fa3, #ff9a9e, #ffd166, #8ec5ff, #b28bff);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -334,8 +335,8 @@ button[disabled] {
 /*
   Changes applied:
   - Replaced DOM-heavy fireworks with a canvas-based implementation for much smoother performance on mobile.
-  - Added responsive sizing for the "Happy Valentines days" overlay (smaller text and adjusted balloon counts/sizes when on phones).
-  - Other page behavior unchanged.
+  - Adjusted the flow so fireworks run for 13s; after 7s the Happy Valentines overlay runs for 5s while fireworks continue.
+  - Made the Happy Valentines text gradient more attractive. Balloon animation and pop animation remain unchanged.
 */
 
 let noClickCount = 0;
@@ -743,7 +744,7 @@ function shadeColor(hex, percent) {
 /*
  Yes click behavior updates:
  - On the 3rd Yes click: remove/hide the panel and hide the entire card content immediately,
-   then proceed with audio -> fireworks -> 7s balloon animation -> final content.
+   then proceed with audio -> fireworks -> valentines overlay (starts after 7s) -> final content.
  - Other behaviors unchanged.
 */
 function yesClicked(e) {
@@ -802,7 +803,8 @@ function yesClicked(e) {
                 <div class="romantic-name">Happy Valentine’s 💕</div>
                 <p>
                 HEY Cutieeee, you clicked again on yes. The next one is the last.<br>
-                If you click that yes too then i become the happiest person on EARTH....</p>
+                If you click that yes too then i become the happiest person on EARTH....
+                </p>
                 <p><small>(Tap anywhere to continue)</small></p>
             `);
         });
@@ -822,18 +824,16 @@ function yesClicked(e) {
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // run intensified fireworks for 14 seconds.
-        // Start the Valentine's overlay after 7 seconds (it will run for 5s),
-        // and when the fireworks promise resolves (after 14s) show final content.
-        const fireworksPromise = launchFireworks(14000);
+        // Run fireworks for 13s. After 7s (while fireworks continue) start the Happy Valentines overlay for 5s.
+        // Do not remove fireworks when happy enters; wait for both to finish before showing final content.
+        const fireworksPromise = launchFireworks(13000); // 13 seconds
+        const valentinesPromise = new Promise(resolve => {
+            setTimeout(() => {
+                showValentineAnimation(5000).then(resolve); // run for 5s
+            }, 7000); // start at 7s into fireworks
+        });
 
-        // schedule the Valentine's overlay to start 7s into the fireworks
-        setTimeout(() => {
-            // show for 5 seconds
-            showValentineAnimation(5000).catch(()=>{});
-        }, 7000);
-
-        fireworksPromise.then(() => {
+        Promise.all([fireworksPromise, valentinesPromise]).then(() => {
             // restore card visibility and show final content exactly as before
             card.style.visibility = 'visible';
             card.classList.add("sad-card");
@@ -844,8 +844,8 @@ function yesClicked(e) {
                     <img src="final2.jpg" alt="final image 2">
                 </div>
                 <p style="margin-top:14px; text-align:left;">
-                HEY Girl🫶... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
-                Anyways i love you a lot frrrr🥺🩵..... Thanks for clicking yes...😭🧚‍♀️
+                HEY Girl... I don't know you really clicked yes on purpose if yes is your final answer please let me know.<br><br>
+                Anyways i love you a lot..... Thanks for clicking yes...
                 </p>
                 <div style="margin-top:16px;">
                     <button id="clearBtn" style="position:static; border-radius:18px; padding:10px 18px; background:#ff4d88; color:white; border:none; cursor:pointer;">Clear</button>
