@@ -207,6 +207,33 @@ const voice2 = document.getElementById("voice2");
 renderMain();
 
 /*
+ Helper: preload an image and return a Promise that resolves on load,
+ rejects on error (so we can show fallback text if the image is missing).
+*/
+function preloadImage(src, timeoutMs = 5000) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        let timer = null;
+        img.onload = () => {
+            if (timer) clearTimeout(timer);
+            resolve(src);
+        };
+        img.onerror = () => {
+            if (timer) clearTimeout(timer);
+            reject(new Error('Image failed to load: ' + src));
+        };
+        if (timeoutMs) {
+            timer = setTimeout(() => {
+                // give up
+                img.onload = img.onerror = null;
+                reject(new Error('Image load timeout: ' + src));
+            }, timeoutMs);
+        }
+        img.src = src;
+    });
+}
+
+/*
  Use a one-time click listener when showing a message so we don't
  get race/bubbling issues on mobile/desktop. showTempMessage sets
  showingMessage=true and installs a one-time listener that restores
@@ -297,12 +324,12 @@ function handleNo(e) {
 }
 
 /*
- Yes click behavior:
+ Yes click behavior (preloads images and handles missing files gracefully):
  - 1st yes: lock No, show yes.jpg + trap message
- - 2nd yes: show yes2.jpg + the "HEY Cutieeee..." message
+ - 2nd yes: show yes2.jpg + the HEY Cutieeee message
  - subsequent: show yes.jpg + running count
 */
-function yesClicked(e) {
+async function yesClicked(e) {
     // prevent the click from bubbling to other handlers
     e.stopPropagation();
 
@@ -312,40 +339,80 @@ function yesClicked(e) {
         // lock the No button from now on
         noLocked = true;
 
-        showTempMessage(`
-            <div class="romantic-name">Happy Valentine’s 💕</div>
-            <img src="yes.jpg" class="full-img" alt="Yes image">
-            <p>
-            You know it's a trap.<br>
-            You clicked yes once now you can only click on yes.<br>
-            The no button is locked
-            </p>
-            <p><small>(Tap anywhere to continue)</small></p>
-        `);
+        // preload yes.jpg (optional) and then show the message; fallback to showing message without image on error
+        try {
+            await preloadImage('yes.jpg');
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <img src="yes.jpg" class="full-img" alt="Yes image">
+                <p>
+                You know it's a trap.<br>
+                You clicked yes once now you can only click on yes.<br>
+                The no button is locked
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        } catch (err) {
+            // image failed to load — still show the message text so the user sees the trap
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <p>
+                You know it's a trap.<br>
+                You clicked yes once now you can only click on yes.<br>
+                The no button is locked
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+            console.warn(err);
+        }
         return;
     }
 
     if (yesClickCount === 2) {
-        // second yes: show different image + special message
-        showTempMessage(`
-            <div class="romantic-name">Happy Valentine’s 💕</div>
-            <img src="yes2.jpg" class="full-img" alt="Second yes image">
-            <p>
-            HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
-            and if you click that i will become the happiest person on EARTH....
-            </p>
-            <p><small>(Tap anywhere to continue)</small></p>
-        `);
+        // second yes: preload yes2.jpg and then show different image + special message
+        try {
+            await preloadImage('yes2.jpg');
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <img src="yes2.jpg" class="full-img" alt="Second yes image">
+                <p>
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+        } catch (err) {
+            // fallback to text-only if image missing
+            showTempMessage(`
+                <div class="romantic-name">Happy Valentine’s 💕</div>
+                <p>
+                HEY Cutieeee, you clicked again on the yes so the next one is your final<br>
+                and if you click that i will become the happiest person on EARTH....
+                </p>
+                <p><small>(Tap anywhere to continue)</small></p>
+            `);
+            console.warn(err);
+        }
         return;
     }
 
-    // subsequent Yes clicks: show the yes image + count
-    showTempMessage(`
-        <div class="romantic-name">Happy Valentine’s 💕</div>
-        <img src="yes.jpg" class="full-img" alt="Yes image">
-        <p>You chose YES 💖 (count: ${yesClickCount})</p>
-        <small>(Tap anywhere to continue)</small>
-    `);
+    // subsequent Yes clicks: preload yes.jpg (best-effort) and show the yes image + count
+    try {
+        await preloadImage('yes.jpg');
+        showTempMessage(`
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <img src="yes.jpg" class="full-img" alt="Yes image">
+            <p>You chose YES 💖 (count: ${yesClickCount})</p>
+            <small>(Tap anywhere to continue)</small>
+        `);
+    } catch (err) {
+        showTempMessage(`
+            <div class="romantic-name">Happy Valentine’s 💕</div>
+            <p>You chose YES 💖 (count: ${yesClickCount})</p>
+            <small>(Tap anywhere to continue)</small>
+        `);
+        console.warn(err);
+    }
 }
 
 function heartbreakScene() {
