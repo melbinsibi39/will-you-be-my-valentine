@@ -237,8 +237,8 @@ button[disabled] {
     letter-spacing: 2px;
     font-weight: 900;
     -webkit-text-stroke: 1px rgba(0,0,0,0.12);
-    /* MADE MORE ATTRACTIVE: richer multicolor gradient */
-    background: linear-gradient(90deg, #ff6fa3, #ff9a9e, #ffd166, #8ec5ff, #b28bff);
+    /* slightly adjusted, attractive multicolor gradient */
+    background: linear-gradient(90deg, #ff4d88, #ff9aa2, #ffd76a, #90e0ff, #b68bff);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -335,8 +335,8 @@ button[disabled] {
 /*
   Changes applied:
   - Replaced DOM-heavy fireworks with a canvas-based implementation for much smoother performance on mobile.
-  - Adjusted the flow so fireworks run for 13s; after 7s the Happy Valentines overlay runs for 5s while fireworks continue.
-  - Made the Happy Valentines text gradient more attractive. Balloon animation and pop animation remain unchanged.
+  - Adjusted the flow so fireworks run for 12.5s; after 7s the HAPPY VALENTINE'S DAY overlay runs for 5s while fireworks continue.
+  - Made the HAPPY VALENTINE'S DAY text gradient a bit more attractive. Balloon animation and pop animation remain unchanged.
 */
 
 let noClickCount = 0;
@@ -664,7 +664,7 @@ function showValentineAnimation(duration = 7000) {
         // big text in center
         const text = document.createElement('div');
         text.className = 'v-text';
-        text.textContent = 'Happy Valentines days';
+        text.textContent = "HAPPY VALENTINE'S DAY";
         overlay.appendChild(text);
 
         // detect phone / small screen & adjust sizes/counts for mobile
@@ -824,9 +824,9 @@ function yesClicked(e) {
         yesAudio3.currentTime = 0;
         yesAudio3.play().catch(()=>{});
 
-        // Run fireworks for 13s. After 7s (while fireworks continue) start the Happy Valentines overlay for 5s.
+        // Run fireworks for 12.5s. After 7s (while fireworks continue) start the HAPPY VALENTINE'S DAY overlay for 5s.
         // Do not remove fireworks when happy enters; wait for both to finish before showing final content.
-        const fireworksPromise = launchFireworks(13000); // 13 seconds
+        const fireworksPromise = launchFireworks(12500); // 12.5 seconds
         const valentinesPromise = new Promise(resolve => {
             setTimeout(() => {
                 showValentineAnimation(5000).then(resolve); // run for 5s
