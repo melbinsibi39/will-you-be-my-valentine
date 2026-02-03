@@ -206,13 +206,26 @@ const voice2 = document.getElementById("voice2");
 
 renderMain();
 
-// clicking anywhere when showingMessage is true returns to the main card
-document.body.addEventListener("click", () => {
-    if (showingMessage) {
-        showingMessage = false;
-        renderMain();
-    }
-});
+/*
+ Use a one-time click listener when showing a message so we don't
+ get race/bubbling issues on mobile/desktop. showTempMessage sets
+ showingMessage=true and installs a one-time listener that restores
+ the main view on the next click/tap.
+*/
+function showTempMessage(html) {
+    showingMessage = true;
+    card.innerHTML = html;
+
+    // ensure any accidental propagation from the trigger doesn't immediately close it:
+    // add the listener in the next task so the click that opened the message doesn't close it.
+    setTimeout(() => {
+        document.addEventListener('click', function closeOnce() {
+            showingMessage = false;
+            renderMain();
+            document.removeEventListener('click', closeOnce);
+        }, { once: true });
+    }, 0);
+}
 
 function renderMain() {
     card.classList.remove("sad-card");
@@ -253,18 +266,16 @@ function handleNo(e) {
 
     if (noClickCount === 0) {
         noClickCount++;
-        showingMessage = true;
-        card.innerHTML = `
+        showTempMessage(`
             <div class="romantic-name">Angel Theresa 💖</div>
             <img src="how.jpg" class="full-img" alt="how image">
             <p><small>(Tap anywhere to continue)</small></p>
-        `;
+        `);
     }
     else if (noClickCount === 1) {
         // 2nd click: show image + message, and voice1 is played above
         noClickCount++;
-        showingMessage = true;
-        card.innerHTML = `
+        showTempMessage(`
             <div class="romantic-name">Angel Theresa 💖</div>
             <img src="second.jpg" class="full-img" alt="second image">
             <p>
@@ -276,7 +287,7 @@ function handleNo(e) {
             i will wait until the next 14th........
             </p>
             <small>(Tap anywhere to continue)</small>
-        `;
+        `);
     }
     else if (noClickCount === 2) {
         noClickCount++;
@@ -288,17 +299,16 @@ function handleNo(e) {
 // Yes click shows an image and increments yesClickCount.
 // On the FIRST Yes click it also shows the trap message and locks the No button.
 function yesClicked(e) {
-    // prevent the click from bubbling to the body immediately
+    // prevent the click from bubbling to other handlers
     e.stopPropagation();
 
     yesClickCount++;
-    showingMessage = true;
 
     if (yesClickCount === 1) {
         // lock the No button from now on
         noLocked = true;
 
-        card.innerHTML = `
+        showTempMessage(`
             <div class="romantic-name">Happy Valentine’s 💕</div>
             <img src="yes.jpg" class="full-img" alt="Yes image">
             <p>
@@ -307,17 +317,17 @@ function yesClicked(e) {
             The no button is locked
             </p>
             <p><small>(Tap anywhere to continue)</small></p>
-        `;
+        `);
         return;
     }
 
     // subsequent Yes clicks: show the yes image + count
-    card.innerHTML = `
+    showTempMessage(`
         <div class="romantic-name">Happy Valentine’s 💕</div>
         <img src="yes.jpg" class="full-img" alt="Yes image">
         <p>You chose YES 💖 (count: ${yesClickCount})</p>
         <small>(Tap anywhere to continue)</small>
-    `;
+    `);
 }
 
 function heartbreakScene() {
@@ -366,7 +376,7 @@ function restart() {
     noClickCount = 0;
     heartbreakDone = false;
     showingMessage = false;
-    // reset yes counter and unlock No on restart (optional — change if you want to persist yes count)
+    // reset yes counter and unlock No on restart
     yesClickCount = 0;
     noLocked = false;
 
